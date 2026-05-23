@@ -20,6 +20,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useEffect } from 'react';
 import { useAuthStore } from '@store/auth.store';
+import { authService } from '@services/auth.service';
 import { Button } from '@components/ui/Button';
 import { Input } from '@components/ui/Input';
 import { COLORS } from '@constants/colors';
@@ -55,6 +56,22 @@ export default function LoginScreen() {
       await login({ email: email.trim(), password });
       router.replace('/(tabs)');
     } catch (err: any) {
+      // Auto-heal active session conflicts by clearing the session and retrying
+      if (
+        err.message?.includes('prohibited') ||
+        err.message?.includes('session is active') ||
+        err.message?.includes('active session')
+      ) {
+        try {
+          await authService.logout();
+          await login({ email: email.trim(), password });
+          router.replace('/(tabs)');
+          return;
+        } catch (retryErr: any) {
+          Alert.alert('Login Failed', retryErr.message || 'Invalid credentials. Please try again.');
+          return;
+        }
+      }
       Alert.alert('Login Failed', err.message || 'Invalid credentials. Please try again.');
     }
   };

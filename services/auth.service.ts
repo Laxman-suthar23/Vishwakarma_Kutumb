@@ -16,7 +16,13 @@ export const authService = {
 
       // Fetch user profile
       const user = await this.getCurrentUser();
-      if (!user) throw new Error('Failed to retrieve user profile after login.');
+      if (!user) {
+        // Clear active session since profile fetch failed
+        try {
+          await account.deleteSession('current');
+        } catch {}
+        throw new Error('Failed to find your Admin profile in the database. Please make sure step 3 of the setup is completed.');
+      }
 
       // Persist session token securely
       const session = await account.getSession('current');
