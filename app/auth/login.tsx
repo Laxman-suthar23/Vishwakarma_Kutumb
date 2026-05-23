@@ -24,9 +24,15 @@ import { authService } from '@services/auth.service';
 import { Button } from '@components/ui/Button';
 import { Input } from '@components/ui/Input';
 import { COLORS } from '@constants/colors';
+import i18n from '@services/i18n.service';
+import { useLanguageStore } from '@store/language.store';
+import { Image } from 'expo-image';
+import { useToast } from '@store/toast.store';
 
 export default function LoginScreen() {
   const { login, isLoading, error, clearError } = useAuthStore();
+  const locale = useLanguageStore((s) => s.locale); // dynamic listener
+  const { showToast } = useToast();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -48,7 +54,11 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Missing Fields', 'Please enter your email and password.');
+      showToast({
+        type: 'warning',
+        title: locale === 'en' ? 'Missing Fields' : 'अपूर्ण जानकारी',
+        message: locale === 'en' ? 'Please enter your email and password.' : 'कृपया अपना ईमेल और पासवर्ड दर्ज करें।',
+      });
       return;
     }
 
@@ -68,11 +78,19 @@ export default function LoginScreen() {
           router.replace('/(tabs)');
           return;
         } catch (retryErr: any) {
-          Alert.alert('Login Failed', retryErr.message || 'Invalid credentials. Please try again.');
+          showToast({
+            type: 'error',
+            title: locale === 'en' ? 'Login Failed' : 'लॉगिन विफल',
+            message: retryErr.message || (locale === 'en' ? 'Invalid credentials. Please try again.' : 'गलत क्रेडेंशियल। कृपया पुनः प्रयास करें।'),
+          });
           return;
         }
       }
-      Alert.alert('Login Failed', err.message || 'Invalid credentials. Please try again.');
+      showToast({
+        type: 'error',
+        title: locale === 'en' ? 'Login Failed' : 'लॉगिन विफल',
+        message: err.message || (locale === 'en' ? 'Invalid credentials. Please try again.' : 'गलत क्रेडेंशियल। कृपया पुनः प्रयास करें।'),
+      });
     }
   };
 
@@ -102,15 +120,14 @@ export default function LoginScreen() {
             {/* Logo section */}
             <View style={styles.header}>
               <View style={styles.logoCircle}>
-                <LinearGradient
-                  colors={['#D4A017', '#9A6E00']}
-                  style={styles.logoGrad}
-                >
-                  <Text style={{ fontSize: 36 }}>🏛️</Text>
-                </LinearGradient>
+                <Image
+                  source={require('../../assets/images/adaptive-icon.png')}
+                  style={{ width: '100%', height: '100%' }}
+                  contentFit="contain"
+                />
               </View>
-              <Text style={styles.appName}>ग्राम परिवार</Text>
-              <Text style={styles.appSub}>Gram Parivar</Text>
+              <Text style={styles.appName}>विश्वकर्मा कुटुंब</Text>
+              <Text style={styles.appSub}>Vishwakarma Kutumb</Text>
             </View>
 
             {/* Login Card */}
@@ -124,8 +141,8 @@ export default function LoginScreen() {
               />
 
               <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>Welcome Back</Text>
-                <Text style={styles.cardSubtitle}>Sign in to manage your village directory</Text>
+                <Text style={styles.cardTitle}>{i18n.t('login_title')}</Text>
+                <Text style={styles.cardSubtitle}>{i18n.t('login_subtitle')}</Text>
 
                 {/* Ornament */}
                 <View style={styles.ornament}>
@@ -136,8 +153,8 @@ export default function LoginScreen() {
 
                 {/* Form */}
                 <Input
-                  label="Email Address"
-                  placeholder="admin@gramparivar.com"
+                  label={i18n.t('login_label_email')}
+                  placeholder={i18n.t('login_placeholder_email')}
                   value={email}
                   onChangeText={(t) => { setEmail(t); clearError(); }}
                   keyboardType="email-address"
@@ -147,8 +164,8 @@ export default function LoginScreen() {
                 />
 
                 <Input
-                  label="Password"
-                  placeholder="Enter your password"
+                  label={i18n.t('login_label_password')}
+                  placeholder={i18n.t('login_placeholder_password')}
                   value={password}
                   onChangeText={(t) => { setPassword(t); clearError(); }}
                   secureTextEntry={!showPassword}
@@ -166,7 +183,7 @@ export default function LoginScreen() {
                 )}
 
                 <Button
-                  title="Sign In"
+                  title={isLoading ? i18n.t('login_btn_signing_in') : i18n.t('login_btn_signin')}
                   onPress={handleLogin}
                   isLoading={isLoading}
                   fullWidth
@@ -179,7 +196,10 @@ export default function LoginScreen() {
             {/* Footer */}
             <View style={styles.footer}>
               <Text style={styles.footerText}>
-                🔐 Secure admin portal for authorized personnel only
+                {locale === 'en' 
+                  ? '🔐 Secure admin portal for authorized personnel only' 
+                  : '🔐 केवल अधिकृत व्यक्तियों के लिए सुरक्षित एडमिन पोर्टल'
+                }
               </Text>
             </View>
           </ScrollView>

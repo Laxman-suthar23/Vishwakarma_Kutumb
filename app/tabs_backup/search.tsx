@@ -17,7 +17,7 @@ import { memberService } from '@services/member.service';
 import { FamilyCard } from '@components/family/FamilyCard';
 import { EmptyState } from '@components/ui/EmptyState';
 import { COLORS } from '@constants/colors';
-import type { Family, Member } from '@types/index';
+import type { Family, Member } from '@/types/index';
 
 type FilterType = 'all' | 'families' | 'members';
 
@@ -261,7 +261,7 @@ const SearchHints = () => (
     {[
       { emoji: '👤', text: 'Search by family head name' },
       { emoji: '📱', text: 'Search by mobile number' },
-      { emoji: '🏷️', text: 'Search by Gotra (e.g., Kashyap, Bharadwaj)' },
+      { emoji: '🏷️', text: 'Search by Gotra (e.g., Lunja, Kuleriya, Padama)' },
       { emoji: '🏘️', text: 'Search by village name' },
       { emoji: '💼', text: 'Search by occupation or education' },
     ].map((hint, i) => (

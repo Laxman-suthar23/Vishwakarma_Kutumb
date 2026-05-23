@@ -12,6 +12,9 @@ import { cloudinaryService } from '@services/cloudinary.service';
 import { Input } from '@components/ui/Input';
 import { Button } from '@components/ui/Button';
 import { COLORS } from '@constants/colors';
+import { useLanguageStore } from '@store/language.store';
+import { useToast } from '@store/toast.store';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function AddVillageScreen() {
   const { villageId, editMode } = useLocalSearchParams<{
@@ -20,6 +23,8 @@ export default function AddVillageScreen() {
   }>();
 
   const isEdit = editMode === 'true';
+  const locale = useLanguageStore((s) => s.locale); // dynamic language listener
+  const { showToast } = useToast();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -35,7 +40,11 @@ export default function AddVillageScreen() {
       const result = await cloudinaryService.pickAndUpload('gram-parivar/villages');
       if (result) setCoverImageUrl(result.secureUrl);
     } catch (err: any) {
-      Alert.alert('Upload Failed', err.message);
+      showToast({
+        type: 'error',
+        title: locale === 'en' ? 'Upload Failed' : 'अपलोड विफल',
+        message: err.message,
+      });
     } finally {
       setIsUploading(false);
     }
@@ -43,7 +52,11 @@ export default function AddVillageScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Missing Info', 'Village name is required.');
+      showToast({
+        type: 'warning',
+        title: locale === 'en' ? 'Missing Info' : 'अपूर्ण जानकारी',
+        message: locale === 'en' ? 'Village name is required.' : 'गाँव का नाम आवश्यक है।',
+      });
       return;
     }
 
@@ -53,21 +66,31 @@ export default function AddVillageScreen() {
           id: villageId,
           data: { name: name.trim(), description, coverImageUrl },
         });
-        Alert.alert('✅ Village Updated!', `"${name}" has been updated.`, [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
+        showToast({
+          type: 'success',
+          title: locale === 'en' ? 'Village Updated' : 'गाँव अपडेट हो गया',
+          message: locale === 'en' ? `"${name}" has been updated.` : `"${name}" अपडेट कर दिया गया है।`,
+        });
+        router.back();
       } else {
         await createVillage.mutateAsync({
           name: name.trim(),
           description,
           coverImageUrl,
         });
-        Alert.alert('✅ Village Added!', `"${name}" has been added to the directory.`, [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
+        showToast({
+          type: 'success',
+          title: locale === 'en' ? 'Village Added' : 'गाँव जुड़ गया',
+          message: locale === 'en' ? `"${name}" has been added to the directory.` : `"${name}" को निर्देशिका में जोड़ दिया गया है।`,
+        });
+        router.back();
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save village.');
+      showToast({
+        type: 'error',
+        title: locale === 'en' ? 'Error' : 'त्रुटि',
+        message: err.message || (locale === 'en' ? 'Failed to save village.' : 'गाँव सहेजने में विफल।'),
+      });
     }
   };
 
@@ -79,12 +102,15 @@ export default function AddVillageScreen() {
         <SafeAreaView edges={['top']}>
           <View style={styles.headerRow}>
             <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-              <Text style={styles.closeBtnText}>✕ Cancel</Text>
+              <Ionicons name="close" size={20} color={COLORS.gold.light} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>
-              {isEdit ? 'Edit Village' : 'Add New Village'}
+              {isEdit 
+                ? (locale === 'en' ? 'Edit Village' : 'गाँव संपादित करें') 
+                : (locale === 'en' ? 'Add New Village' : 'नया गाँव जोड़ें')
+              }
             </Text>
-            <View style={{ width: 70 }} />
+            <View style={{ width: 36 }} />
           </View>
         </SafeAreaView>
       </LinearGradient>
@@ -95,7 +121,9 @@ export default function AddVillageScreen() {
       >
         <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
           {/* Village Cover Image */}
-          <Text style={styles.label}>Village Cover Image</Text>
+          <Text style={styles.label}>
+            {locale === 'en' ? 'Village Cover Image' : 'गाँव की कवर इमेज'}
+          </Text>
           <TouchableOpacity onPress={handleImagePick} style={styles.imagePicker} disabled={isUploading}>
             {coverImageUrl ? (
               <Image source={{ uri: coverImageUrl }} style={styles.imagePreview} contentFit="cover" />
@@ -106,7 +134,9 @@ export default function AddVillageScreen() {
                 ) : (
                   <>
                     <Text style={{ fontSize: 32 }}>🏘️</Text>
-                    <Text style={styles.imagePlaceholderText}>Tap to upload village cover</Text>
+                    <Text style={styles.imagePlaceholderText}>
+                      {locale === 'en' ? 'Tap to upload village cover' : 'गाँव की कवर इमेज अपलोड करने के लिए टैप करें'}
+                    </Text>
                   </>
                 )}
               </LinearGradient>
@@ -114,15 +144,15 @@ export default function AddVillageScreen() {
           </TouchableOpacity>
 
           <Input
-            label="Village Name"
-            placeholder="e.g., Rampur, Sonpur, Krishnapur"
+            label={locale === 'en' ? 'Village Name' : 'गाँव का नाम'}
+            placeholder={locale === 'en' ? 'e.g., Rampur, Sonpur, Krishnapur' : 'उदा. रामपुर, सोनपुर, कृष्णपुर'}
             value={name}
             onChangeText={setName}
             required
           />
           <Input
-            label="Description (Optional)"
-            placeholder="Brief description about this village..."
+            label={locale === 'en' ? 'Description (Optional)' : 'विवरण (वैकल्पिक)'}
+            placeholder={locale === 'en' ? 'Brief description about this village...' : 'इस गाँव के बारे में संक्षिप्त विवरण...'}
             value={description}
             onChangeText={setDescription}
             multiline
@@ -132,14 +162,23 @@ export default function AddVillageScreen() {
           <View style={styles.infoBox}>
             <Text style={styles.infoIcon}>ℹ️</Text>
             <Text style={styles.infoText}>
-              After adding the village, you can assign a village admin to manage families and members within it.
+              {locale === 'en' 
+                ? 'After adding the village, you can assign a village admin to manage families and members within it.'
+                : 'गाँव जोड़ने के बाद, आप इसके भीतर परिवारों और सदस्यों को प्रबंधित करने के लिए एक गाँव एडमिन नियुक्त कर सकते हैं।'
+              }
             </Text>
           </View>
         </ScrollView>
 
         <View style={styles.bottomBar}>
           <Button
-            title={isSaving ? 'Saving...' : isEdit ? '✅ Update Village' : '✅ Save Village'}
+            title={
+              isSaving 
+                ? (locale === 'en' ? 'Saving...' : 'सहेज रहा है...') 
+                : isEdit 
+                  ? (locale === 'en' ? '✅ Update Village' : '✅ गाँव अपडेट करें') 
+                  : (locale === 'en' ? '✅ Save Village' : '✅ गाँव सहेजें')
+            }
             onPress={handleSave}
             isLoading={isSaving}
             fullWidth
@@ -161,11 +200,12 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderRadius: 18,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  closeBtnText: { color: COLORS.gold.light, fontSize: 13, fontWeight: '600' },
   headerTitle: { fontSize: 17, fontWeight: '700', color: '#FEFDF8' },
   form: { padding: 16, paddingBottom: 32 },
   label: { fontSize: 13, fontWeight: '600', color: COLORS.maroon[800], marginBottom: 8 },

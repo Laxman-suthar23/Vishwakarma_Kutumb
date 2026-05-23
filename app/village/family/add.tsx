@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,18 +10,24 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { useCreateFamily, useCreateMember } from '@hooks/useQueries';
+import { useCreateFamily, useCreateMember, useFamily, useUpdateFamily, useVillages } from '@hooks/useQueries';
 import { cloudinaryService } from '@services/cloudinary.service';
 import { Input } from '@components/ui/Input';
 import { Button } from '@components/ui/Button';
 import { Avatar } from '@components/ui/Avatar';
 import { COLORS } from '@constants/colors';
 import { COMMON_GOTRAS, EDUCATION_TYPES, RELATION_LABELS, SCHOOL_STANDARDS } from '@constants/config';
-import type { FamilyFormData, MemberFormData, RelationType, EducationType, Gender } from '@types/index';
+import type { FamilyFormData, MemberFormData, RelationType, EducationType, Gender } from '@/types';
+import i18n from '@services/i18n.service';
+import { useLanguageStore } from '@store/language.store';
+import { useAuthStore } from '@store/auth.store';
+import { useToast } from '@store/toast.store';
+import { Ionicons } from '@expo/vector-icons';
 
 // ─── Step indicators ──────────────────────────────────────────────────────────
 
@@ -64,9 +70,67 @@ export default function AddFamilyScreen() {
   const [familyData, setFamilyData] = useState<Partial<FamilyFormData>>(emptyFamily);
   const [members, setMembers] = useState<Partial<MemberFormData>[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const locale = useLanguageStore((s) => s.locale); // dynamic listener
+  const { showToast } = useToast();
 
   const createFamily = useCreateFamily();
   const createMember = useCreateMember();
+  const updateFamily = useUpdateFamily();
+
+  const { user } = useAuthStore();
+  const { data: villagesList } = useVillages();
+  const [selectedVillageId, setSelectedVillageId] = useState<string>('');
+
+  // Fallback and map villageId
+  useEffect(() => {
+    if (params.villageId) {
+      setFamilyData((p) => ({ ...p, villageId: params.villageId }));
+    } else if (user?.role === 'VILLAGE_ADMIN' && user.assignedVillageId) {
+      setFamilyData((p) => ({ ...p, villageId: user.assignedVillageId }));
+    }
+  }, [params.villageId, user]);
+
+  const handleVillageChange = (vId: string) => {
+    setSelectedVillageId(vId);
+    setFamilyData((p) => ({ ...p, villageId: vId }));
+  };
+
+  // Fetch existing family data in edit mode
+  const { data: existingFamily, isLoading: isFamilyLoading } = useFamily(
+    params.editMode === 'true' && params.familyId ? params.familyId : ''
+  );
+
+  useEffect(() => {
+    if (params.editMode === 'true' && existingFamily) {
+      setFamilyData({
+        headName: existingFamily.headName || '',
+        fatherName: existingFamily.fatherName || '',
+        mobile: existingFamily.mobile || '',
+        altMobile: existingFamily.altMobile || '',
+        gotra: existingFamily.gotra || '',
+        address: existingFamily.address || '',
+        headImageUrl: existingFamily.headImageUrl || '',
+        villageId: existingFamily.villageId || '',
+      });
+    }
+  }, [existingFamily, params.editMode]);
+
+  if (params.editMode === 'true' && isFamilyLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.cream[50], gap: 12 }}>
+        <ActivityIndicator size="large" color={COLORS.maroon[800]} />
+        <Text style={{ color: COLORS.maroon[800], fontSize: 16, fontWeight: '600' }}>
+          {locale === 'en' ? 'Loading family details...' : 'परिवार विवरण लोड हो रहा है...'}
+        </Text>
+      </View>
+    );
+  }
+
+  const dynamicSteps = [
+    { number: 1, label: locale === 'en' ? 'Family Head' : 'परिवार मुखिया', emoji: '👤' },
+    { number: 2, label: locale === 'en' ? 'Members' : 'परिवार सदस्य', emoji: '👥' },
+    { number: 3, label: locale === 'en' ? 'Preview' : 'पूर्वावलोकन', emoji: '📋' },
+  ];
 
   // ── Image Upload ──────────────────────────────────────────────────────────
 
@@ -78,7 +142,10 @@ export default function AddFamilyScreen() {
         setFamilyData((p) => ({ ...p, headImageUrl: result.secureUrl }));
       }
     } catch (err: any) {
-      Alert.alert('Upload Failed', err.message || 'Could not upload image.');
+      Alert.alert(
+        locale === 'en' ? 'Upload Failed' : 'अपलोड विफल', 
+        err.message || (locale === 'en' ? 'Could not upload image.' : 'छवि अपलोड नहीं की जा सकी।')
+      );
     } finally {
       setIsUploading(false);
     }
@@ -87,18 +154,32 @@ export default function AddFamilyScreen() {
   // ── Navigation ────────────────────────────────────────────────────────────
 
   const validateStep1 = () => {
-    if (!familyData.headName?.trim()) return 'Head name is required.';
-    if (!familyData.mobile?.trim() || familyData.mobile.length < 10)
-      return 'Valid 10-digit mobile number is required.';
-    if (!familyData.gotra?.trim()) return 'Gotra is required.';
-    if (!familyData.address?.trim()) return 'Address is required.';
+    if (!familyData.headName?.trim()) {
+      return locale === 'en' ? 'Head name is required.' : 'मुखिया का नाम आवश्यक है।';
+    }
+    if (!familyData.mobile?.trim() || familyData.mobile.length < 10) {
+      return locale === 'en' ? 'Valid 10-digit mobile number is required.' : 'वैध 10-अंकीय मोबाइल नंबर आवश्यक है।';
+    }
+    if (!familyData.gotra?.trim()) {
+      return locale === 'en' ? 'Gotra is required.' : 'गोत्र आवश्यक है।';
+    }
+    if (!familyData.address?.trim()) {
+      return locale === 'en' ? 'Address is required.' : 'पता आवश्यक है।';
+    }
     return null;
   };
 
   const goNext = () => {
     if (step === 1) {
       const error = validateStep1();
-      if (error) { Alert.alert('Missing Info', error); return; }
+      if (error) { 
+        showToast({
+          type: 'warning',
+          title: locale === 'en' ? 'Missing Info' : 'अपूर्ण जानकारी',
+          message: error,
+        });
+        return; 
+      }
     }
     setStep((s) => Math.min(s + 1, 3));
   };
@@ -126,12 +207,41 @@ export default function AddFamilyScreen() {
 
   const handleSubmit = async () => {
     try {
+      if (params.editMode === 'true' && params.familyId) {
+        await updateFamily.mutateAsync({
+          id: params.familyId,
+          data: familyData,
+        });
+
+        showToast({
+          type: 'success',
+          title: locale === 'en' ? 'Changes Saved' : 'बदलाव सहेजे गए',
+          message: locale === 'en'
+            ? `${familyData.headName}'s family details have been successfully updated.`
+            : `${familyData.headName} का परिवार विवरण सफलतापूर्वक अपडेट कर दिया गया है।`,
+        });
+        router.back();
+        return;
+      }
+
+      const villageIdToUse = params.villageId || familyData.villageId || (user?.role === 'VILLAGE_ADMIN' ? user.assignedVillageId : '');
+      const villageNameToUse = params.villageName || (villagesList?.villages?.find(v => v.$id === villageIdToUse)?.name) || (user?.role === 'VILLAGE_ADMIN' ? user.assignedVillageName : '');
+
+      if (!villageIdToUse) {
+        showToast({
+          type: 'warning',
+          title: locale === 'en' ? 'Select Village' : 'गाँव चुनें',
+          message: locale === 'en' ? 'Please select a village to add the family to.' : 'कृपया परिवार जोड़ने के लिए एक गाँव का चयन करें।',
+        });
+        return;
+      }
+
       const family = await createFamily.mutateAsync({
         familyData: {
           ...familyData,
-          villageId: params.villageId,
+          villageId: villageIdToUse,
         } as FamilyFormData,
-        villageName: params.villageName || '',
+        villageName: villageNameToUse || '',
       });
 
       // Create members
@@ -144,17 +254,24 @@ export default function AddFamilyScreen() {
         }
       }
 
-      Alert.alert(
-        '✅ Family Added!',
-        `${familyData.headName}'s family has been added to ${params.villageName}.`,
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      showToast({
+        type: 'success',
+        title: locale === 'en' ? 'Family Added' : 'परिवार जोड़ा गया',
+        message: locale === 'en'
+          ? `${familyData.headName}'s family has been added to ${villageNameToUse}.`
+          : `${familyData.headName} का परिवार सफलतापूर्वक ${villageNameToUse} में जोड़ दिया गया है।`,
+      });
+      router.back();
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save family. Please try again.');
+      showToast({
+        type: 'error',
+        title: locale === 'en' ? 'Error' : 'त्रुटि',
+        message: err.message || (locale === 'en' ? 'Failed to save family. Please try again.' : 'परिवार सहेजने में विफल। कृपया पुनः प्रयास करें।'),
+      });
     }
   };
 
-  const isSubmitting = createFamily.isPending || createMember.isPending;
+  const isSubmitting = createFamily.isPending || createMember.isPending || updateFamily.isPending;
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.cream[50] }}>
@@ -163,36 +280,43 @@ export default function AddFamilyScreen() {
         <SafeAreaView edges={['top']}>
           <View style={styles.headerRow}>
             <TouchableOpacity onPress={goBack} style={styles.closeBtn}>
-              <Text style={styles.closeBtnText}>
-                {step === 1 ? '✕ Cancel' : '← Back'}
-              </Text>
+              <Ionicons
+                name={step === 1 ? 'close' : 'chevron-back'}
+                size={20}
+                color={COLORS.gold.light}
+              />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>
-              {params.editMode ? 'Edit Family' : 'Add New Family'}
+              {params.editMode === 'true' 
+                ? (locale === 'en' ? 'Edit Family' : 'परिवार संपादित करें') 
+                : (locale === 'en' ? 'Add New Family' : 'नया परिवार जोड़ें')
+              }
             </Text>
-            <View style={{ width: 70 }} />
+            <View style={{ width: 36 }} />
           </View>
 
           {/* Step indicator */}
-          <View style={styles.stepRow}>
-            {STEPS.map((s, i) => (
-              <React.Fragment key={s.number}>
-                <View style={styles.stepItem}>
-                  <View style={[styles.stepCircle, step >= s.number && styles.stepCircleActive]}>
-                    <Text style={[styles.stepNum, step >= s.number && styles.stepNumActive]}>
-                      {step > s.number ? '✓' : s.emoji}
+          {params.editMode !== 'true' && (
+            <View style={styles.stepRow}>
+              {dynamicSteps.map((s, i) => (
+                <React.Fragment key={s.number}>
+                  <View style={styles.stepItem}>
+                    <View style={[styles.stepCircle, step >= s.number && styles.stepCircleActive]}>
+                      <Text style={[styles.stepNum, step >= s.number && styles.stepNumActive]}>
+                        {step > s.number ? '✓' : s.emoji}
+                      </Text>
+                    </View>
+                    <Text style={[styles.stepLabel, step >= s.number && styles.stepLabelActive]}>
+                      {s.label}
                     </Text>
                   </View>
-                  <Text style={[styles.stepLabel, step >= s.number && styles.stepLabelActive]}>
-                    {s.label}
-                  </Text>
-                </View>
-                {i < STEPS.length - 1 && (
-                  <View style={[styles.stepLine, step > s.number && styles.stepLineActive]} />
-                )}
-              </React.Fragment>
-            ))}
-          </View>
+                  {i < dynamicSteps.length - 1 && (
+                    <View style={[styles.stepLine, step > s.number && styles.stepLineActive]} />
+                  )}
+                </React.Fragment>
+              ))}
+            </View>
+          )}
         </SafeAreaView>
       </LinearGradient>
 
@@ -205,48 +329,85 @@ export default function AddFamilyScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* ── STEP 1: Family Head ───────────────── */}
-          {step === 1 && (
+          {params.editMode === 'true' ? (
             <Step1
               data={familyData}
               onChange={(k, v) => setFamilyData((p) => ({ ...p, [k]: v }))}
               isUploading={isUploading}
               onPickImage={handleImagePick}
+              showVillagePicker={!params.villageId && user?.role === 'SUPER_ADMIN'}
+              villages={villagesList?.villages || []}
+              selectedVillageId={familyData.villageId || ''}
+              onSelectVillage={handleVillageChange}
             />
-          )}
+          ) : (
+            <>
+              {/* ── STEP 1: Family Head ───────────────── */}
+              {step === 1 && (
+                <Step1
+                  data={familyData}
+                  onChange={(k, v) => setFamilyData((p) => ({ ...p, [k]: v }))}
+                  isUploading={isUploading}
+                  onPickImage={handleImagePick}
+                  showVillagePicker={!params.villageId && user?.role === 'SUPER_ADMIN'}
+                  villages={villagesList?.villages || []}
+                  selectedVillageId={familyData.villageId || ''}
+                  onSelectVillage={handleVillageChange}
+                />
+              )}
 
-          {/* ── STEP 2: Members ───────────────────── */}
-          {step === 2 && (
-            <Step2
-              members={members}
-              onAdd={addMember}
-              onUpdate={updateMember}
-              onRemove={removeMember}
-            />
-          )}
+              {/* ── STEP 2: Members ───────────────────── */}
+              {step === 2 && (
+                <Step2
+                  members={members}
+                  onAdd={addMember}
+                  onUpdate={updateMember}
+                  onRemove={removeMember}
+                />
+              )}
 
-          {/* ── STEP 3: Preview ───────────────────── */}
-          {step === 3 && (
-            <Step3
-              familyData={familyData}
-              members={members}
-              villageName={params.villageName}
-            />
+              {/* ── STEP 3: Preview ───────────────────── */}
+              {step === 3 && (
+                <Step3
+                  familyData={familyData}
+                  members={members}
+                  villageName={params.villageName}
+                />
+              )}
+            </>
           )}
         </ScrollView>
 
         {/* Bottom action bar */}
         <View style={styles.bottomBar}>
-          {step < 3 ? (
+          {params.editMode === 'true' ? (
             <Button
-              title={step === 2 ? 'Preview →' : 'Next →'}
+              title={isSubmitting 
+                ? (locale === 'en' ? 'Saving...' : 'सहेज रहा है...') 
+                : (locale === 'en' ? '💾 Save Changes' : '💾 बदलाव सहेजें')
+              }
+              onPress={handleSubmit}
+              isLoading={isSubmitting}
+              variant="gold"
+              fullWidth
+              size="lg"
+            />
+          ) : step < 3 ? (
+            <Button
+              title={step === 2 
+                ? (locale === 'en' ? 'Preview →' : 'पूर्वावलोकन →') 
+                : (locale === 'en' ? 'Next →' : 'आगे →')
+              }
               onPress={goNext}
               fullWidth
               size="lg"
             />
           ) : (
             <Button
-              title={isSubmitting ? 'Saving...' : '✅ Save Family'}
+              title={isSubmitting 
+                ? (locale === 'en' ? 'Saving...' : 'सहेज रहा है...') 
+                : (locale === 'en' ? '✅ Save Family' : '✅ परिवार सहेजें')
+              }
               onPress={handleSubmit}
               isLoading={isSubmitting}
               variant="gold"
@@ -267,15 +428,49 @@ function Step1({
   onChange,
   isUploading,
   onPickImage,
+  showVillagePicker,
+  villages,
+  selectedVillageId,
+  onSelectVillage,
 }: {
   data: Partial<FamilyFormData>;
   onChange: (key: string, value: string) => void;
   isUploading: boolean;
   onPickImage: () => void;
+  showVillagePicker?: boolean;
+  villages: any[];
+  selectedVillageId: string;
+  onSelectVillage: (villageId: string) => void;
 }) {
+  const locale = useLanguageStore((s) => s.locale);
   return (
     <View>
-      <SectionTitle emoji="👤" title="Family Head Details" />
+      <SectionTitle emoji="👤" title={locale === 'en' ? 'Family Head Details' : 'परिवार मुखिया का विवरण'} />
+
+      {/* Village Picker for Super Admin when adding family directly */}
+      {showVillagePicker && (
+        <View style={{ marginBottom: 16 }}>
+          <Text style={styles.fieldLabel}>
+            {locale === 'en' ? 'Select Village' : 'गाँव चुनें'}{' '}
+            <Text style={{ color: COLORS.saffron[500] }}>*</Text>
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8, marginBottom: 8 }}>
+            <View style={styles.gotraRow}>
+              {villages.map((v: any) => (
+                <TouchableOpacity
+                  key={v.$id}
+                  onPress={() => onSelectVillage(v.$id)}
+                  style={[styles.gotraChip, selectedVillageId === v.$id && styles.gotraChipActive]}
+                >
+                  <Text style={[styles.gotraChipText, selectedVillageId === v.$id && styles.gotraChipTextActive]}>
+                    🏛️ {v.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+      )}
 
       {/* Photo picker */}
       <TouchableOpacity onPress={onPickImage} style={styles.photoPicker} disabled={isUploading}>
@@ -292,29 +487,56 @@ function Step1({
             ) : (
               <>
                 <Text style={styles.photoIcon}>📷</Text>
-                <Text style={styles.photoText}>Tap to add photo</Text>
+
               </>
             )}
           </View>
         )}
         {data.headImageUrl && (
           <View style={styles.photoEditBadge}>
-            <Text style={{ color: '#fff', fontSize: 10 }}>✏️ Change</Text>
+            <Text style={{ color: '#fff', fontSize: 10 }}>
+              {locale === 'en' ? '✏️ Change' : '✏️ बदलें'}
+            </Text>
           </View>
         )}
       </TouchableOpacity>
 
-      <Input label="Head Name" placeholder="e.g., Ramesh Kumar Sharma" value={data.headName || ''}
-        onChangeText={(v) => onChange('headName', v)} required />
-      <Input label="Father's Name" placeholder="e.g., Suresh Kumar Sharma" value={data.fatherName || ''}
-        onChangeText={(v) => onChange('fatherName', v)} />
-      <Input label="Mobile Number" placeholder="10-digit mobile" value={data.mobile || ''}
-        onChangeText={(v) => onChange('mobile', v)} keyboardType="phone-pad" maxLength={10} required />
-      <Input label="Alternate Mobile" placeholder="Optional" value={data.altMobile || ''}
-        onChangeText={(v) => onChange('altMobile', v)} keyboardType="phone-pad" maxLength={10} />
+      <Input 
+        label={locale === 'en' ? 'Head Name' : 'मुखिया का नाम'} 
+        placeholder={locale === 'en' ? 'e.g., Ramesh Kumar Sharma' : 'उदा. रमेश कुमार शर्मा'} 
+        value={data.headName || ''}
+        onChangeText={(v) => onChange('headName', v)} 
+        required 
+      />
+      <Input 
+        label={locale === 'en' ? "Father's Name" : "पिता का नाम"} 
+        placeholder={locale === 'en' ? 'e.g., Suresh Kumar Sharma' : 'उदा. सुरेश कुमार शर्मा'} 
+        value={data.fatherName || ''}
+        onChangeText={(v) => onChange('fatherName', v)} 
+      />
+      <Input 
+        label={locale === 'en' ? 'Mobile Number' : 'मोबाइल नंबर'} 
+        placeholder={locale === 'en' ? '10-digit mobile' : '10-अंकीय मोबाइल'} 
+        value={data.mobile || ''}
+        onChangeText={(v) => onChange('mobile', v)} 
+        keyboardType="phone-pad" 
+        maxLength={10} 
+        required 
+      />
+      <Input 
+        label={locale === 'en' ? 'Alternate Mobile' : 'वैकल्पिक मोबाइल'} 
+        placeholder={locale === 'en' ? 'Optional' : 'वैकल्पिक'} 
+        value={data.altMobile || ''}
+        onChangeText={(v) => onChange('altMobile', v)} 
+        keyboardType="phone-pad" 
+        maxLength={10} 
+      />
 
       {/* Gotra picker */}
-      <Text style={styles.fieldLabel}>Gotra <Text style={{ color: COLORS.saffron[500] }}>*</Text></Text>
+      <Text style={styles.fieldLabel}>
+        {locale === 'en' ? 'Gotra' : 'गोत्र'}{' '}
+        <Text style={{ color: COLORS.saffron[500] }}>*</Text>
+      </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
         <View style={styles.gotraRow}>
           {COMMON_GOTRAS.map((g) => (
@@ -330,11 +552,22 @@ function Step1({
           ))}
         </View>
       </ScrollView>
-      <Input label="Custom Gotra" placeholder="Or type gotra here" value={data.gotra || ''}
-        onChangeText={(v) => onChange('gotra', v)} />
+      <Input 
+        label={locale === 'en' ? 'Custom Gotra' : 'कस्टम गोत्र'} 
+        placeholder={locale === 'en' ? 'Or type gotra here' : 'या यहाँ गोत्र टाइप करें'} 
+        value={data.gotra || ''}
+        onChangeText={(v) => onChange('gotra', v)} 
+      />
 
-      <Input label="Full Address" placeholder="House No., Street, Village, Dist." value={data.address || ''}
-        onChangeText={(v) => onChange('address', v)} multiline numberOfLines={3} required />
+      <Input 
+        label={locale === 'en' ? 'Full Address' : 'पूरा पता'} 
+        placeholder={locale === 'en' ? 'House No., Street, Village, Dist.' : 'मकान नंबर, गली, गाँव, जिला'} 
+        value={data.address || ''}
+        onChangeText={(v) => onChange('address', v)} 
+        multiline 
+        numberOfLines={3} 
+        required 
+      />
     </View>
   );
 }
@@ -352,24 +585,36 @@ function Step2({
   onUpdate: (index: number, field: string, value: any) => void;
   onRemove: (index: number) => void;
 }) {
+  const locale = useLanguageStore((s) => s.locale);
   return (
     <View>
-      <SectionTitle emoji="👥" title="Family Members" />
-      <Text style={styles.stepHint}>Add all members of this family (skip head — already added)</Text>
+      <SectionTitle emoji="👥" title={locale === 'en' ? 'Family Members' : 'परिवार के सदस्य'} />
+      <Text style={styles.stepHint}>
+        {locale === 'en' 
+          ? 'Add all members of this family (skip head — already added)' 
+          : 'इस परिवार के सभी सदस्यों को जोड़ें (मुखिया को छोड़ दें — पहले से ही जोड़ा जा चुका है)'
+        }
+      </Text>
 
       {members.map((member, index) => (
         <MemberForm key={index} index={index} member={member} onUpdate={onUpdate} onRemove={onRemove} />
       ))}
 
       <TouchableOpacity onPress={onAdd} style={styles.addMemberBtn}>
-        <Text style={styles.addMemberText}>+ Add Member</Text>
+        <Text style={styles.addMemberText}>
+          {locale === 'en' ? '+ Add Member' : '+ सदस्य जोड़ें'}
+        </Text>
       </TouchableOpacity>
 
       {members.length === 0 && (
         <View style={styles.emptyMembersHint}>
           <Text style={styles.emptyMembersIcon}>👨‍👩‍👧‍👦</Text>
-          <Text style={styles.emptyMembersText}>Tap "Add Member" to add family members</Text>
-          <Text style={styles.emptyMembersSubText}>You can skip this step and add members later</Text>
+          <Text style={styles.emptyMembersText}>
+            {locale === 'en' ? 'Tap "Add Member" to add family members' : 'परिवार के सदस्यों को जोड़ने के लिए "सदस्य जोड़ें" पर टैप करें'}
+          </Text>
+          <Text style={styles.emptyMembersSubText}>
+            {locale === 'en' ? 'You can skip this step and add members later' : 'आप इस चरण को छोड़ सकते हैं और बाद में सदस्य जोड़ सकते हैं'}
+          </Text>
         </View>
       )}
     </View>
@@ -388,6 +633,36 @@ function MemberForm({
   onRemove: (index: number) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [showPicker, setShowPicker] = useState(false);
+  const locale = useLanguageStore((s) => s.locale);
+
+  const getRelationLabel = (rel: string) => {
+    if (locale === 'hi') {
+      if (rel === 'SON') return 'पुत्र';
+      if (rel === 'DAUGHTER') return 'पुत्री';
+      if (rel === 'SPOUSE') return 'जीवनसाथी';
+      if (rel === 'FATHER') return 'पिता';
+      if (rel === 'MOTHER') return 'माता';
+      if (rel === 'BROTHER') return 'भाई';
+      if (rel === 'SISTER') return 'बहन';
+      if (rel === 'GRANDFATHER') return 'दादा/नाना';
+      if (rel === 'GRANDMOTHED' || rel === 'GRANDMOTHER') return 'दादी/नानी';
+      return 'अन्य';
+    }
+    return RELATION_LABELS[rel] || rel;
+  };
+
+  const getEducationLabel = (edu: string) => {
+    if (locale === 'hi') {
+      if (edu === 'SCHOOL') return 'स्कूल';
+      if (edu === 'COLLEGE') return 'कॉलेज';
+      if (edu === 'GRADUATED') return 'स्नातक';
+      if (edu === 'WORKING') return 'कार्यरत';
+      if (edu === 'BUSINESS') return 'व्यवसाय';
+      return 'अन्य';
+    }
+    return (EDUCATION_TYPES as any)[edu] || edu;
+  };
 
   return (
     <View style={styles.memberFormCard}>
@@ -396,7 +671,10 @@ function MemberForm({
         onPress={() => setExpanded((e) => !e)}
       >
         <Text style={styles.memberFormTitle}>
-          👤 Member {index + 1}: {member.name || 'New Member'}
+          {locale === 'en' 
+            ? `👤 Member ${index + 1}: ${member.name || 'New Member'}`
+            : `👤 सदस्य ${index + 1}: ${member.name || 'नया सदस्य'}`
+          }
         </Text>
         <View style={styles.memberFormActions}>
           <Text style={styles.expandIcon}>{expanded ? '▲' : '▼'}</Text>
@@ -408,11 +686,18 @@ function MemberForm({
 
       {expanded && (
         <View style={styles.memberFormBody}>
-          <Input label="Full Name" placeholder="Member name" value={member.name || ''}
-            onChangeText={(v) => onUpdate(index, 'name', v)} required />
+          <Input 
+            label={locale === 'en' ? 'Full Name' : 'पूरा नाम'} 
+            placeholder={locale === 'en' ? 'Member name' : 'सदस्य का नाम'} 
+            value={member.name || ''}
+            onChangeText={(v) => onUpdate(index, 'name', v)} 
+            required 
+          />
 
           {/* Relation picker */}
-          <Text style={styles.fieldLabel}>Relation</Text>
+          <Text style={styles.fieldLabel}>
+            {locale === 'en' ? 'Relation' : 'संबंध'}
+          </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
             <View style={styles.gotraRow}>
               {['SON', 'DAUGHTER', 'SPOUSE', 'FATHER', 'MOTHER', 'BROTHER', 'SISTER', 'GRANDFATHER', 'GRANDMOTHER', 'OTHER'].map((rel) => (
@@ -422,7 +707,7 @@ function MemberForm({
                   style={[styles.gotraChip, member.relation === rel && styles.gotraChipActive]}
                 >
                   <Text style={[styles.gotraChipText, member.relation === rel && styles.gotraChipTextActive]}>
-                    {RELATION_LABELS[rel] || rel}
+                    {getRelationLabel(rel)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -430,7 +715,9 @@ function MemberForm({
           </ScrollView>
 
           {/* Gender */}
-          <Text style={styles.fieldLabel}>Gender</Text>
+          <Text style={styles.fieldLabel}>
+            {locale === 'en' ? 'Gender' : 'लिंग'}
+          </Text>
           <View style={styles.genderRow}>
             {(['MALE', 'FEMALE', 'OTHER'] as Gender[]).map((g) => (
               <TouchableOpacity
@@ -439,17 +726,56 @@ function MemberForm({
                 style={[styles.genderChip, member.gender === g && styles.genderChipActive]}
               >
                 <Text style={styles.genderChipText}>
-                  {g === 'MALE' ? '👨 Male' : g === 'FEMALE' ? '👩 Female' : '🧑 Other'}
+                  {g === 'MALE' 
+                    ? (locale === 'en' ? '👨 Male' : '👨 पुरुष') 
+                    : g === 'FEMALE' 
+                      ? (locale === 'en' ? '👩 Female' : '👩 महिला') 
+                      : (locale === 'en' ? '🧑 Other' : '🧑 अन्य')
+                  }
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <Input label="Date of Birth" placeholder="YYYY-MM-DD (e.g., 1995-06-15)" value={member.dateOfBirth || ''}
-            onChangeText={(v) => onUpdate(index, 'dateOfBirth', v)} keyboardType="numeric" required />
+          <TouchableOpacity onPress={() => setShowPicker(true)}>
+            <View pointerEvents="none">
+              <Input 
+                label={locale === 'en' ? 'Date of Birth' : 'जन्म तिथि'} 
+                placeholder={locale === 'en' ? 'Select Date of Birth' : 'जन्म तिथि चुनें'} 
+                value={member.dateOfBirth || ''}
+                editable={false}
+                required 
+              />
+            </View>
+          </TouchableOpacity>
+
+          {showPicker && (
+            <DateTimePicker
+              value={
+                member.dateOfBirth && !isNaN(new Date(member.dateOfBirth).getTime())
+                  ? new Date(member.dateOfBirth)
+                  : new Date(2000, 0, 1)
+              }
+              mode="date"
+              display="calendar"
+              maximumDate={new Date()}
+              onChange={(event, selectedDate) => {
+                setShowPicker(false);
+                if (selectedDate) {
+                  const year = selectedDate.getFullYear();
+                  const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                  const day = String(selectedDate.getDate()).padStart(2, '0');
+                  const formattedDate = `${year}-${month}-${day}`;
+                  onUpdate(index, 'dateOfBirth', formattedDate);
+                }
+              }}
+            />
+          )}
 
           {/* Education type */}
-          <Text style={styles.fieldLabel}>Education / Occupation Type</Text>
+          <Text style={styles.fieldLabel}>
+            {locale === 'en' ? 'Education / Occupation Type' : 'शिक्षा / व्यवसाय का प्रकार'}
+          </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
             <View style={styles.gotraRow}>
               {(Object.entries(EDUCATION_TYPES) as [EducationType, string][]).map(([key, label]) => (
@@ -459,7 +785,7 @@ function MemberForm({
                   style={[styles.gotraChip, member.educationType === key && styles.gotraChipActive]}
                 >
                   <Text style={[styles.gotraChipText, member.educationType === key && styles.gotraChipTextActive]}>
-                    {label}
+                    {getEducationLabel(key)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -469,7 +795,9 @@ function MemberForm({
           {/* Conditional fields */}
           {member.educationType === 'SCHOOL' && (
             <>
-              <Text style={styles.fieldLabel}>Current Standard / Class</Text>
+              <Text style={styles.fieldLabel}>
+                {locale === 'en' ? 'Current Standard / Class' : 'वर्तमान कक्षा'}
+              </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                 <View style={styles.gotraRow}>
                   {SCHOOL_STANDARDS.map((s) => (
@@ -488,27 +816,49 @@ function MemberForm({
                   ))}
                 </View>
               </ScrollView>
-              <Input label="School Name" placeholder="School or college name" value={member.schoolOrCollegeName || ''}
-                onChangeText={(v) => onUpdate(index, 'schoolOrCollegeName', v)} />
+              <Input 
+                label={locale === 'en' ? 'School Name' : 'स्कूल का नाम'} 
+                placeholder={locale === 'en' ? 'School or college name' : 'स्कूल या कॉलेज का नाम'} 
+                value={member.schoolOrCollegeName || ''}
+                onChangeText={(v) => onUpdate(index, 'schoolOrCollegeName', v)} 
+              />
             </>
           )}
 
           {(member.educationType === 'COLLEGE' || member.educationType === 'GRADUATED') && (
             <>
-              <Input label="Degree / Course" placeholder="e.g., B.Com, M.Sc, B.Tech" value={member.degree || ''}
-                onChangeText={(v) => onUpdate(index, 'degree', v)} />
-              <Input label="College Name" placeholder="College or university name" value={member.schoolOrCollegeName || ''}
-                onChangeText={(v) => onUpdate(index, 'schoolOrCollegeName', v)} />
+              <Input 
+                label={locale === 'en' ? 'Degree / Course' : 'डिग्री / कोर्स'} 
+                placeholder={locale === 'en' ? 'e.g., B.Com, M.Sc, B.Tech' : 'उदा. B.Com, M.Sc, B.Tech'} 
+                value={member.degree || ''}
+                onChangeText={(v) => onUpdate(index, 'degree', v)} 
+              />
+              <Input 
+                label={locale === 'en' ? 'College Name' : 'कॉलेज का नाम'} 
+                placeholder={locale === 'en' ? 'College or university name' : 'कॉलेज या विश्वविद्यालय का नाम'} 
+                value={member.schoolOrCollegeName || ''}
+                onChangeText={(v) => onUpdate(index, 'schoolOrCollegeName', v)} 
+              />
             </>
           )}
 
           {(member.educationType === 'WORKING' || member.educationType === 'BUSINESS' || member.educationType === 'OTHER') && (
-            <Input label="Occupation / Business" placeholder="e.g., Farming, Furniture Business, Teacher" value={member.occupation || ''}
-              onChangeText={(v) => onUpdate(index, 'occupation', v)} />
+            <Input 
+              label={locale === 'en' ? 'Occupation / Business' : 'व्यवसाय / नौकरी'} 
+              placeholder={locale === 'en' ? 'e.g., Farming, Furniture Business, Teacher' : 'उदा. खेती, फर्नीचर व्यवसाय, शिक्षक'} 
+              value={member.occupation || ''}
+              onChangeText={(v) => onUpdate(index, 'occupation', v)} 
+            />
           )}
 
-          <Input label="Mobile (Optional)" placeholder="Member's phone number" value={member.mobile || ''}
-            onChangeText={(v) => onUpdate(index, 'mobile', v)} keyboardType="phone-pad" maxLength={10} />
+          <Input 
+            label={locale === 'en' ? 'Mobile (Optional)' : 'मोबाइल (वैकल्पिक)'} 
+            placeholder={locale === 'en' ? "Member's phone number" : 'सदस्य का फोन नंबर'} 
+            value={member.mobile || ''}
+            onChangeText={(v) => onUpdate(index, 'mobile', v)} 
+            keyboardType="phone-pad" 
+            maxLength={10} 
+          />
         </View>
       )}
     </View>
@@ -526,9 +876,39 @@ function Step3({
   members: Partial<MemberFormData>[];
   villageName?: string;
 }) {
+  const locale = useLanguageStore((s) => s.locale);
+
+  const getRelationLabel = (rel: string) => {
+    if (locale === 'hi') {
+      if (rel === 'SON') return 'पुत्र';
+      if (rel === 'DAUGHTER') return 'पुत्री';
+      if (rel === 'SPOUSE') return 'जीवनसाथी';
+      if (rel === 'FATHER') return 'पिता';
+      if (rel === 'MOTHER') return 'माता';
+      if (rel === 'BROTHER') return 'भाई';
+      if (rel === 'SISTER') return 'बहन';
+      if (rel === 'GRANDFATHER') return 'दादा/नाना';
+      if (rel === 'GRANDMOTHER') return 'दादी/नानी';
+      return 'अन्य';
+    }
+    return RELATION_LABELS[rel] || rel;
+  };
+
+  const getEducationLabel = (edu: string) => {
+    if (locale === 'hi') {
+      if (edu === 'SCHOOL') return 'स्कूल';
+      if (edu === 'COLLEGE') return 'कॉलेज';
+      if (edu === 'GRADUATED') return 'स्नातक';
+      if (edu === 'WORKING') return 'कार्यरत';
+      if (edu === 'BUSINESS') return 'व्यवसाय';
+      return 'अन्य';
+    }
+    return (EDUCATION_TYPES as any)[edu] || edu;
+  };
+
   return (
     <View>
-      <SectionTitle emoji="📋" title="Review & Confirm" />
+      <SectionTitle emoji="📋" title={locale === 'en' ? 'Review & Confirm' : 'समीक्षा और पुष्टि करें'} />
 
       {/* Family summary */}
       <View style={styles.previewCard}>
@@ -537,31 +917,34 @@ function Step3({
           {familyData.headImageUrl && (
             <Image source={{ uri: familyData.headImageUrl }} style={styles.previewImage} contentFit="cover" />
           )}
-          <PreviewRow label="Head Name" value={familyData.headName || '—'} />
-          <PreviewRow label="Father's Name" value={familyData.fatherName || '—'} />
-          <PreviewRow label="Village" value={villageName || '—'} />
-          <PreviewRow label="Gotra" value={familyData.gotra || '—'} />
-          <PreviewRow label="Mobile" value={familyData.mobile || '—'} />
-          <PreviewRow label="Address" value={familyData.address || '—'} />
+          <PreviewRow label={locale === 'en' ? 'Head Name' : 'मुखिया का नाम'} value={familyData.headName || '—'} />
+          <PreviewRow label={locale === 'en' ? "Father's Name" : "पिता का नाम"} value={familyData.fatherName || '—'} />
+          <PreviewRow label={locale === 'en' ? 'Village' : 'गाँव'} value={villageName || '—'} />
+          <PreviewRow label={locale === 'en' ? 'Gotra' : 'गोत्र'} value={familyData.gotra || '—'} />
+          <PreviewRow label={locale === 'en' ? 'Mobile' : 'मोबाइल'} value={familyData.mobile || '—'} />
+          <PreviewRow label={locale === 'en' ? 'Address' : 'पता'} value={familyData.address || '—'} />
         </View>
       </View>
 
       {members.length > 0 && (
         <>
           <Text style={styles.memberPreviewTitle}>
-            👥 {members.length} Member(s) to be added
+            {locale === 'en' 
+              ? `👥 ${members.length} Member(s) to be added`
+              : `👥 ${members.length} सदस्य जोड़े जाएंगे`
+            }
           </Text>
           {members.map((m, i) => (
             <View key={i} style={styles.memberPreviewCard}>
               <Text style={styles.memberPreviewName}>
-                {m.name || `Member ${i + 1}`}
+                {m.name || (locale === 'en' ? `Member ${i + 1}` : `सदस्य ${i + 1}`)}
               </Text>
               <Text style={styles.memberPreviewMeta}>
-                {RELATION_LABELS[m.relation as string] || m.relation} · {m.gender} · DOB: {m.dateOfBirth || '—'}
+                {getRelationLabel(m.relation as string)} · {m.gender === 'MALE' ? (locale === 'en' ? 'Male' : 'पुरुष') : m.gender === 'FEMALE' ? (locale === 'en' ? 'Female' : 'महिला') : (locale === 'en' ? 'Other' : 'अन्य')} · {locale === 'en' ? 'DOB' : 'जन्म तिथि'}: {m.dateOfBirth || '—'}
               </Text>
               <Text style={styles.memberPreviewEdu}>
-                📚 {EDUCATION_TYPES[m.educationType as EducationType] || m.educationType}
-                {m.currentStandard ? ` · Class ${m.currentStandard}` : ''}
+                📚 {getEducationLabel(m.educationType as EducationType)}
+                {m.currentStandard ? ` · ${locale === 'en' ? `Class ${m.currentStandard}` : `कक्षा ${m.currentStandard}`}` : ''}
                 {m.degree ? ` · ${m.degree}` : ''}
               </Text>
             </View>
@@ -571,7 +954,10 @@ function Step3({
 
       <View style={styles.confirmNote}>
         <Text style={styles.confirmNoteText}>
-          🙏 Please verify all information before saving. This will be recorded in the village directory.
+          {locale === 'en'
+            ? '🙏 Please verify all information before saving. This will be recorded in the village directory.'
+            : '🙏 कृपया सहेजने से पहले सभी जानकारी सत्यापित करें। यह गाँव की निर्देशिका में दर्ज किया जाएगा।'
+          }
         </Text>
       </View>
     </View>
@@ -615,14 +1001,11 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  closeBtnText: {
-    color: COLORS.gold.light,
-    fontSize: 13,
-    fontWeight: '600',
+    borderRadius: 18,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stepRow: {
     flexDirection: 'row',

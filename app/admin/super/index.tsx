@@ -18,11 +18,14 @@ import { VillageCardFull } from '@components/village/VillageCard';
 import { Card } from '@components/ui/Card';
 import { EmptyState } from '@components/ui/EmptyState';
 import { COLORS } from '@constants/colors';
+import { useLanguageStore } from '@store/language.store';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function SuperAdminDashboard() {
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'villages' | 'admins'>('villages');
+  const locale = useLanguageStore((s) => s.locale); // dynamic language listener
 
   const { data: villagesData, refetch: refetchVillages } = useVillages();
   const { data: admins, refetch: refetchAdmins } = useQuery({
@@ -42,16 +45,21 @@ export default function SuperAdminDashboard() {
 
   const handleDeleteVillage = (villageId: string, villageName: string) => {
     Alert.alert(
-      'Delete Village',
-      `Are you sure you want to permanently delete "${villageName}" and ALL its families and members? This cannot be undone.`,
+      locale === 'en' ? 'Delete Village' : 'गाँव हटाएं',
+      locale === 'en'
+        ? `Are you sure you want to permanently delete "${villageName}" and ALL its families and members? This cannot be undone.`
+        : `क्या आप वाकई "${villageName}" और उसके सभी परिवारों और सदस्यों को स्थायी रूप से हटाना चाहते हैं? इसे वापस नहीं लिया जा सकता।`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: locale === 'en' ? 'Cancel' : 'रद्द करें', style: 'cancel' },
         {
-          text: 'Delete Permanently',
+          text: locale === 'en' ? 'Delete Permanently' : 'स्थायी रूप से हटाएं',
           style: 'destructive',
           onPress: () =>
             deleteVillage.mutate(villageId, {
-              onError: () => Alert.alert('Error', 'Failed to delete village.'),
+              onError: () => Alert.alert(
+                locale === 'en' ? 'Error' : 'त्रुटि', 
+                locale === 'en' ? 'Failed to delete village.' : 'गाँव हटाने में विफल।'
+              ),
             }),
         },
       ]
@@ -60,19 +68,24 @@ export default function SuperAdminDashboard() {
 
   const handleDeleteAdmin = async (adminId: string, adminName: string) => {
     Alert.alert(
-      'Remove Admin',
-      `Remove "${adminName}" as a Village Admin?`,
+      locale === 'en' ? 'Remove Admin' : 'एडमिन हटाएं',
+      locale === 'en'
+        ? `Remove "${adminName}" as a Village Admin?`
+        : `क्या आप "${adminName}" को गाँव एडमिन के रूप से हटाना चाहते हैं?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: locale === 'en' ? 'Cancel' : 'रद्द करें', style: 'cancel' },
         {
-          text: 'Remove',
+          text: locale === 'en' ? 'Remove' : 'हटाएं',
           style: 'destructive',
           onPress: async () => {
             try {
               await authService.updateAdmin(adminId, { isActive: false });
               qc.invalidateQueries({ queryKey: ['admins'] });
             } catch {
-              Alert.alert('Error', 'Failed to remove admin.');
+              Alert.alert(
+                locale === 'en' ? 'Error' : 'त्रुटि', 
+                locale === 'en' ? 'Failed to remove admin.' : 'एडमिन हटाने में विफल।'
+              );
             }
           },
         },
@@ -89,18 +102,20 @@ export default function SuperAdminDashboard() {
         <SafeAreaView edges={['top']}>
           <View style={styles.headerRow}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-              <Text style={styles.backBtnText}>← Back</Text>
+              <Ionicons name="chevron-back" size={20} color={COLORS.gold.light} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Super Admin</Text>
-            <View style={{ width: 60 }} />
+            <Text style={styles.headerTitle}>
+              {locale === 'en' ? 'Super Admin' : 'सुपर एडमिन'}
+            </Text>
+            <View style={{ width: 36 }} />
           </View>
 
           {/* Global Stats */}
           <View style={styles.statsGrid}>
-            <StatCard value={villagesData?.total ?? 0} label="Villages" emoji="🏘️" color="#FFE0B2" />
-            <StatCard value={totalFamilies} label="Families" emoji="🏠" color="#E8F5E9" />
-            <StatCard value={totalMembers} label="Members" emoji="👥" color="#E3F2FD" />
-            <StatCard value={admins?.length ?? 0} label="Admins" emoji="👮" color="#FCE4EC" />
+            <StatCard value={villagesData?.total ?? 0} label={locale === 'en' ? 'Villages' : 'गाँव'} emoji="🏘️" color="#FFE0B2" />
+            <StatCard value={totalFamilies} label={locale === 'en' ? 'Families' : 'परिवार'} emoji="🏠" color="#E8F5E9" />
+            <StatCard value={totalMembers} label={locale === 'en' ? 'Members' : 'सदस्य'} emoji="👥" color="#E3F2FD" />
+            <StatCard value={admins?.length ?? 0} label={locale === 'en' ? 'Admins' : 'एडमिन'} emoji="👮" color="#FCE4EC" />
           </View>
 
           {/* Action buttons */}
@@ -110,7 +125,9 @@ export default function SuperAdminDashboard() {
               style={styles.actionBtn}
             >
               <LinearGradient colors={['#D4A017', '#9A6E00']} style={styles.actionGrad}>
-                <Text style={styles.actionText}>+ Add Village</Text>
+                <Text style={styles.actionText}>
+                  {locale === 'en' ? '+ Add Village' : '+ गाँव जोड़ें'}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
             <TouchableOpacity
@@ -118,7 +135,9 @@ export default function SuperAdminDashboard() {
               style={styles.actionBtn}
             >
               <LinearGradient colors={['#8B1A1A', '#3D0C11']} style={styles.actionGrad}>
-                <Text style={styles.actionText}>+ Add Admin</Text>
+                <Text style={styles.actionText}>
+                  {locale === 'en' ? '+ Add Admin' : '+ एडमिन जोड़ें'}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -130,7 +149,7 @@ export default function SuperAdminDashboard() {
               style={[styles.tab, activeTab === 'villages' && styles.tabActive]}
             >
               <Text style={[styles.tabText, activeTab === 'villages' && styles.tabTextActive]}>
-                🏘️ Villages
+                {locale === 'en' ? '🏘️ Villages' : '🏘️ गाँव'}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -138,7 +157,7 @@ export default function SuperAdminDashboard() {
               style={[styles.tab, activeTab === 'admins' && styles.tabActive]}
             >
               <Text style={[styles.tabText, activeTab === 'admins' && styles.tabTextActive]}>
-                👮 Admins
+                {locale === 'en' ? '👮 Admins' : '👮 एडमिन'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -157,9 +176,9 @@ export default function SuperAdminDashboard() {
             {villages.length === 0 ? (
               <EmptyState
                 icon="🏘️"
-                title="No Villages Yet"
-                description="Start by adding the first village"
-                actionLabel="Add Village"
+                title={locale === 'en' ? 'No Villages Yet' : 'कोई गाँव नहीं मिला'}
+                description={locale === 'en' ? 'Start by adding the first village' : 'पहला गाँव जोड़कर शुरुआत करें'}
+                actionLabel={locale === 'en' ? 'Add Village' : 'गाँव जोड़ें'}
                 onAction={() => router.push('/admin/super/add-village')}
               />
             ) : (
@@ -177,13 +196,17 @@ export default function SuperAdminDashboard() {
                       })}
                       style={styles.editVillageBtn}
                     >
-                      <Text style={styles.editVillageBtnText}>✏️ Edit Village</Text>
+                      <Text style={styles.editVillageBtnText}>
+                        {locale === 'en' ? '✏️ Edit Village' : '✏️ गाँव संपादित करें'}
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => handleDeleteVillage(village.$id, village.name)}
                       style={styles.deleteVillageBtn}
                     >
-                      <Text style={styles.deleteVillageBtnText}>🗑️ Delete</Text>
+                      <Text style={styles.deleteVillageBtnText}>
+                        {locale === 'en' ? '🗑️ Delete' : '🗑️ हटाएं'}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -198,9 +221,9 @@ export default function SuperAdminDashboard() {
             {!admins || admins.length === 0 ? (
               <EmptyState
                 icon="👮"
-                title="No Admins Yet"
-                description="Add village admins to manage individual villages"
-                actionLabel="Add Admin"
+                title={locale === 'en' ? 'No Admins Yet' : 'कोई एडमिन नहीं मिला'}
+                description={locale === 'en' ? 'Add village admins to manage individual villages' : 'व्यक्तिगत गाँवों के प्रबंधन के लिए गाँव एडमिन जोड़ें'}
+                actionLabel={locale === 'en' ? 'Add Admin' : 'एडमिन जोड़ें'}
                 onAction={() => router.push('/admin/super/add-admin')}
               />
             ) : (
@@ -208,6 +231,7 @@ export default function SuperAdminDashboard() {
                 <AdminCard
                   key={admin.$id}
                   admin={admin}
+                  locale={locale}
                   onEdit={() => router.push({
                     pathname: '/admin/super/add-admin',
                     params: { adminId: admin.$id, editMode: 'true' },
@@ -245,10 +269,12 @@ const StatCard = ({
 
 const AdminCard = ({
   admin,
+  locale,
   onEdit,
   onDelete,
 }: {
   admin: any;
+  locale: string;
   onEdit: () => void;
   onDelete: () => void;
 }) => (
@@ -266,16 +292,23 @@ const AdminCard = ({
       </View>
       <View style={[styles.adminStatusBadge, { backgroundColor: admin.isActive ? '#E8F5E9' : '#FFEBEE' }]}>
         <Text style={{ fontSize: 11, color: admin.isActive ? '#2D7A3A' : '#C62828', fontWeight: '600' }}>
-          {admin.isActive ? '● Active' : '● Inactive'}
+          {admin.isActive 
+            ? (locale === 'en' ? '● Active' : '● सक्रिय') 
+            : (locale === 'en' ? '● Inactive' : '● निष्क्रिय')
+          }
         </Text>
       </View>
     </View>
     <View style={styles.adminActions}>
       <TouchableOpacity onPress={onEdit} style={styles.adminEditBtn}>
-        <Text style={styles.adminEditText}>✏️ Edit</Text>
+        <Text style={styles.adminEditText}>
+          {locale === 'en' ? '✏️ Edit' : '✏️ संपादित करें'}
+        </Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={onDelete} style={styles.adminDeleteBtn}>
-        <Text style={styles.adminDeleteText}>🗑️ Remove</Text>
+        <Text style={styles.adminDeleteText}>
+          {locale === 'en' ? '🗑️ Remove' : '🗑️ हटाएं'}
+        </Text>
       </TouchableOpacity>
     </View>
   </Card>
@@ -297,14 +330,11 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  backBtnText: {
-    color: COLORS.gold.light,
-    fontSize: 13,
-    fontWeight: '600',
+    borderRadius: 18,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 20,

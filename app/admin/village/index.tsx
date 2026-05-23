@@ -19,11 +19,14 @@ import { EmptyState } from '@components/ui/EmptyState';
 import { Card } from '@components/ui/Card';
 import { COLORS } from '@constants/colors';
 import type { Family } from '@types/index';
+import { useLanguageStore } from '@store/language.store';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function VillageAdminDashboard() {
   const { user } = useAuthStore();
   const { villageId, villageName } = useAssignedVillage();
   const [refreshing, setRefreshing] = useState(false);
+  const locale = useLanguageStore((s) => s.locale); // dynamic listener
 
   const { data: village, refetch: refetchVillage } = useVillage(villageId!);
   const { data: familiesData, isLoading, refetch: refetchFamilies } = useFamilies(villageId!);
@@ -38,17 +41,24 @@ export default function VillageAdminDashboard() {
 
   const handleDelete = (family: Family) => {
     Alert.alert(
-      'Delete Family',
-      `Delete ${family.headName}'s family and all ${family.totalMembers} member(s)?`,
+      locale === 'en' ? 'Delete Family' : 'परिवार हटाएं',
+      locale === 'en'
+        ? `Delete ${family.headName}'s family and all ${family.totalMembers} member(s)?`
+        : `क्या आप ${family.headName} के परिवार और उसके सभी ${family.totalMembers} सदस्यों को हटाना चाहते हैं?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: locale === 'en' ? 'Cancel' : 'रद्द करें', style: 'cancel' },
         {
-          text: 'Delete',
+          text: locale === 'en' ? 'Delete' : 'हटाएं',
           style: 'destructive',
           onPress: () =>
             deleteFamily.mutate(
               { familyId: family.$id, villageId: villageId! },
-              { onError: () => Alert.alert('Error', 'Failed to delete family.') }
+              { 
+                onError: () => Alert.alert(
+                  locale === 'en' ? 'Error' : 'त्रुटि', 
+                  locale === 'en' ? 'Failed to delete family.' : 'परिवार हटाने में विफल।'
+                ) 
+              }
             ),
         },
       ]
@@ -64,25 +74,29 @@ export default function VillageAdminDashboard() {
         <SafeAreaView edges={['top']}>
           <View style={styles.headerRow}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-              <Text style={styles.backBtnText}>← Back</Text>
+              <Ionicons name="chevron-back" size={20} color={COLORS.gold.light} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Village Admin</Text>
-            <View style={{ width: 60 }} />
+            <Text style={styles.headerTitle}>
+              {locale === 'en' ? 'Village Admin' : 'गाँव एडमिन'}
+            </Text>
+            <View style={{ width: 36 }} />
           </View>
 
           {/* Village Info */}
           <View style={styles.villageInfo}>
-            <Text style={styles.villageName}>{villageName ?? 'My Village'}</Text>
-            <Text style={styles.villageWelcome}>Welcome, {user?.name}</Text>
+            <Text style={styles.villageName}>{villageName ?? (locale === 'en' ? 'My Village' : 'मेरा गाँव')}</Text>
+            <Text style={styles.villageWelcome}>
+              {locale === 'en' ? `Welcome, ${user?.name}` : `स्वागत है, ${user?.name}`}
+            </Text>
           </View>
 
           {/* Stats */}
           <View style={styles.statsRow}>
-            <StatItem emoji="🏠" value={totalFamilies} label="Families" />
+            <StatItem emoji="🏠" value={totalFamilies} label={locale === 'en' ? 'Families' : 'परिवार'} />
             <View style={styles.statDivider} />
-            <StatItem emoji="👥" value={totalMembers} label="Members" />
+            <StatItem emoji="👥" value={totalMembers} label={locale === 'en' ? 'Members' : 'सदस्य'} />
             <View style={styles.statDivider} />
-            <StatItem emoji="🗓️" value={recentFamilies?.length ?? 0} label="Recent" />
+            <StatItem emoji="🗓️" value={recentFamilies?.length ?? 0} label={locale === 'en' ? 'Recent' : 'नवीनतम'} />
           </View>
 
           {/* Quick Add */}
@@ -96,7 +110,9 @@ export default function VillageAdminDashboard() {
             style={styles.addFamilyBtn}
           >
             <LinearGradient colors={['#D4A017', '#9A6E00']} style={styles.addFamilyGrad}>
-              <Text style={styles.addFamilyText}>+ Add New Family</Text>
+              <Text style={styles.addFamilyText}>
+                {locale === 'en' ? '+ Add New Family' : '+ नया परिवार जोड़ें'}
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
         </SafeAreaView>
@@ -110,23 +126,25 @@ export default function VillageAdminDashboard() {
       >
         {/* Quick actions */}
         <View style={styles.quickActions}>
-          <QuickAction emoji="🔍" label="Browse All Families"
+          <QuickAction emoji="🔍" label={locale === 'en' ? 'Browse All Families' : 'सभी परिवारों को ब्राउज़ करें'}
             onPress={() => router.push(`/village/${villageId}`)} />
-          <QuickAction emoji="📊" label="Village Overview"
+          <QuickAction emoji="📊" label={locale === 'en' ? 'Village Overview' : 'गाँव का अवलोकन'}
             onPress={() => router.push(`/village/${villageId}`)} />
         </View>
 
         {/* Recently added */}
-        <Text style={styles.sectionTitle}>Recently Added Families</Text>
+        <Text style={styles.sectionTitle}>
+          {locale === 'en' ? 'Recently Added Families' : 'हाल ही में जुड़े परिवार'}
+        </Text>
 
         {isLoading ? (
           [1, 2, 3].map((i) => <FamilyCardSkeleton key={i} />)
         ) : !recentFamilies || recentFamilies.length === 0 ? (
           <EmptyState
             icon="🏠"
-            title="No Families Yet"
-            description="Start adding families to your village"
-            actionLabel="Add First Family"
+            title={locale === 'en' ? 'No Families Yet' : 'कोई परिवार नहीं मिला'}
+            description={locale === 'en' ? 'Start adding families to your village' : 'अपने गाँव में परिवार जोड़ना शुरू करें'}
+            actionLabel={locale === 'en' ? 'Add First Family' : 'पहला परिवार जोड़ें'}
             onAction={() =>
               router.push({
                 pathname: '/village/family/add',
@@ -151,10 +169,14 @@ export default function VillageAdminDashboard() {
                   }
                   style={styles.editBtn}
                 >
-                  <Text style={styles.editBtnText}>✏️ Edit</Text>
+                  <Text style={styles.editBtnText}>
+                    {locale === 'en' ? '✏️ Edit' : '✏️ संपादित करें'}
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleDelete(family)} style={styles.deleteBtn}>
-                  <Text style={styles.deleteBtnText}>🗑️ Delete</Text>
+                  <Text style={styles.deleteBtnText}>
+                    {locale === 'en' ? '🗑️ Delete' : '🗑️ हटाएं'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -168,7 +190,7 @@ export default function VillageAdminDashboard() {
             style={styles.viewAllBtn}
           >
             <Text style={styles.viewAllText}>
-              View All {totalFamilies} Families →
+              {locale === 'en' ? `View All ${totalFamilies} Families →` : `सभी ${totalFamilies} परिवार देखें →`}
             </Text>
           </TouchableOpacity>
         )}
@@ -209,8 +231,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', paddingTop: 12,
   },
-  backBtn: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
-  backBtnText: { color: COLORS.gold.light, fontSize: 13, fontWeight: '600' },
+  backBtn: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 18,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.gold.light },
   villageInfo: { marginTop: 12, marginBottom: 16 },
   villageName: { fontSize: 26, fontWeight: '700', color: '#FEFDF8', letterSpacing: 0.3 },

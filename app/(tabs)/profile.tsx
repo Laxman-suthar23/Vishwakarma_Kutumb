@@ -14,28 +14,67 @@ import { useAuthStore, useIsSuperAdmin } from '@store/auth.store';
 import { Avatar } from '@components/ui/Avatar';
 import { Card } from '@components/ui/Card';
 import { COLORS } from '@constants/colors';
+import i18n from '@services/i18n.service';
+import { useLanguageStore } from '@store/language.store';
+import { useConfirm } from '@store/confirm.store';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuthStore();
   const isSuperAdmin = useIsSuperAdmin();
+  const locale = useLanguageStore((s) => s.locale); // dynamic listener
+  const { setLocale } = useLanguageStore(); // language toggle action
+
+  const { confirm } = useConfirm();
 
   const handleLogout = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out of Gram Parivar?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            router.replace('/auth/login');
-          },
-        },
-      ]
-    );
+    confirm({
+      title: locale === 'en' ? '🚪 Sign Out' : '🚪 लॉग आउट',
+      message: locale === 'en' 
+        ? 'Are you sure you want to sign out of Vishwakarma Kutumb?' 
+        : 'क्या आप वाकई विश्वकर्मा कुटुंब से लॉग आउट करना चाहते हैं?',
+      confirmText: locale === 'en' ? 'Sign Out' : 'लॉग आउट',
+      cancelText: locale === 'en' ? 'Cancel' : 'रद्द करें',
+      isDestructive: true,
+      onConfirm: async () => {
+        await logout();
+        router.replace('/(tabs)');
+      },
+    });
   };
+
+  const LanguageSelectorCard = () => (
+    <Card variant="bordered">
+      <Text style={styles.sectionTitle}>🌐 {locale === 'en' ? 'Language / भाषा' : 'भाषा / Language'}</Text>
+      <View style={styles.langSelectorRow}>
+        <TouchableOpacity
+          style={[
+            styles.langButton,
+            locale === 'en' && styles.langButtonActive
+          ]}
+          onPress={() => setLocale('en')}
+          activeOpacity={0.8}
+        >
+          <Text style={[
+            styles.langButtonText,
+            locale === 'en' && styles.langButtonTextActive
+          ]}>🇬🇧 English</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.langButton,
+            locale === 'hi' && styles.langButtonActive
+          ]}
+          onPress={() => setLocale('hi')}
+          activeOpacity={0.8}
+        >
+          <Text style={[
+            styles.langButtonText,
+            locale === 'hi' && styles.langButtonTextActive
+          ]}>🇮🇳 हिंदी</Text>
+        </TouchableOpacity>
+      </View>
+    </Card>
+  );
 
   if (!user) {
     return (
@@ -44,10 +83,16 @@ export default function ProfileScreen() {
           <SafeAreaView edges={['top']}>
             <View style={styles.headerContent}>
               <Avatar name="Guest User" size="xl" isHead />
-              <Text style={styles.userName}>Guest User</Text>
-              <Text style={styles.userEmail}>Public Directory Access</Text>
+              <Text style={styles.userName}>
+                {locale === 'en' ? 'Guest User' : 'अतिथि दर्शक'}
+              </Text>
+              <Text style={styles.userEmail}>
+                {locale === 'en' ? 'Public Directory Access' : 'सार्वजनिक निर्देशिका पहुँच'}
+              </Text>
               <View style={styles.rolePill}>
-                <Text style={styles.roleText}>👤 Public Viewer</Text>
+                <Text style={styles.roleText}>
+                  {locale === 'en' ? '👤 Public Viewer' : '👤 अतिथि दर्शन'}
+                </Text>
               </View>
             </View>
           </SafeAreaView>
@@ -58,11 +103,19 @@ export default function ProfileScreen() {
           contentContainerStyle={{ padding: 16, gap: 12 }}
           showsVerticalScrollIndicator={false}
         >
+          {/* Language Selection Card */}
+          <LanguageSelectorCard />
+
           {/* Administrator Login card */}
           <Card variant="elevated">
-            <Text style={styles.sectionTitle}>⚙️ Administrator Access</Text>
+            <Text style={styles.sectionTitle}>
+              {locale === 'en' ? '⚙️ Administrator Access' : '⚙️ एडमिनिस्ट्रेटर लॉगिन'}
+            </Text>
             <Text style={{ fontSize: 13, color: COLORS.sandal[600], lineHeight: 18, marginBottom: 12 }}>
-              Are you a Village or Super Admin? Log in with your admin account to register new families, update members, and manage your village directory.
+              {locale === 'en' 
+                ? 'Are you a Village or Super Admin? Log in with your admin account to register new families, update members, and manage your village directory.'
+                : 'क्या आप गाँव या सुपर एडमिन हैं? नए परिवारों को पंजीकृत करने, सदस्यों को अपडेट करने और अपने गाँव की निर्देशिका को प्रबंधित करने के लिए अपने एडमिन खाते से लॉग इन करें।'
+              }
             </Text>
             
             <TouchableOpacity
@@ -74,7 +127,7 @@ export default function ProfileScreen() {
                 style={{ paddingVertical: 14, alignItems: 'center' }}
               >
                 <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14, letterSpacing: 0.3 }}>
-                  🔑 Admin Log In
+                  {locale === 'en' ? '🔑 Admin Log In' : '🔑 एडमिन लॉग इन'}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -82,10 +135,12 @@ export default function ProfileScreen() {
 
           {/* App Info */}
           <Card variant="bordered">
-            <Text style={styles.sectionTitle}>ℹ️ About Directory</Text>
-            <InfoRow label="App Name" value="Gram Parivar" />
-            <InfoRow label="Version" value="1.0.0" />
-            <InfoRow label="Purpose" value="Village Family Heritage Directory" />
+            <Text style={styles.sectionTitle}>
+              {locale === 'en' ? 'ℹ️ About Directory' : 'ℹ️ निर्देशिका के बारे में'}
+            </Text>
+            <InfoRow label={locale === 'en' ? "App Name" : "ऐप का नाम"} value="Vishwakarma Kutumb" />
+            <InfoRow label={locale === 'en' ? "Version" : "संस्करण"} value="1.0.0" />
+            <InfoRow label={locale === 'en' ? "Purpose" : "उद्देश्य"} value={locale === 'en' ? "Village Family Heritage Directory" : "ग्रामीण पारिवारिक विरासत निर्देशिका"} />
           </Card>
 
           {/* Footer ornament */}
@@ -94,7 +149,7 @@ export default function ProfileScreen() {
             <Text style={styles.ornDot}>❋</Text>
             <View style={styles.ornLine} />
           </View>
-          <Text style={styles.footer}>ग्राम परिवार · Gram Parivar</Text>
+          <Text style={styles.footer}>विश्वकर्मा कुटुंब · Vishwakarma Kutumb</Text>
           <View style={{ height: 8 }} />
         </ScrollView>
       </View>
@@ -111,7 +166,10 @@ export default function ProfileScreen() {
             <Text style={styles.userEmail}>{user.email}</Text>
             <View style={styles.rolePill}>
               <Text style={styles.roleText}>
-                {isSuperAdmin ? '👑 Super Admin' : '🏘️ Village Admin'}
+                {isSuperAdmin 
+                  ? (locale === 'en' ? '👑 Super Admin' : '👑 सुपर एडमिन') 
+                  : (locale === 'en' ? '🏘️ Village Admin' : '🏘️ गाँव एडमिन')
+                }
               </Text>
             </View>
             {!isSuperAdmin && user.assignedVillageName && (
@@ -126,24 +184,29 @@ export default function ProfileScreen() {
         contentContainerStyle={{ padding: 16, gap: 12 }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Language Selection Card */}
+        <LanguageSelectorCard />
+
         {/* Admin Dashboard Links */}
         <Card variant="elevated">
-          <Text style={styles.sectionTitle}>⚙️ Administration</Text>
+          <Text style={styles.sectionTitle}>
+            {locale === 'en' ? '⚙️ Administration' : '⚙️ प्रशासनिक टूल्स'}
+          </Text>
           {isSuperAdmin ? (
             <>
               <MenuRow
                 emoji="👑"
-                label="Super Admin Dashboard"
+                label={locale === 'en' ? "Super Admin Dashboard" : "सुपर एडमिन डैशबोर्ड"}
                 onPress={() => router.push('/admin/super')}
               />
               <MenuRow
                 emoji="🏘️"
-                label="Manage Villages"
+                label={locale === 'en' ? "Manage Villages" : "गाँव प्रबंधन"}
                 onPress={() => router.push('/admin/super')}
               />
               <MenuRow
                 emoji="👮"
-                label="Manage Admins"
+                label={locale === 'en' ? "Manage Admins" : "एडमिन प्रबंधन"}
                 onPress={() => router.push('/admin/super')}
               />
             </>
@@ -151,17 +214,17 @@ export default function ProfileScreen() {
             <>
               <MenuRow
                 emoji="📋"
-                label="Village Dashboard"
+                label={locale === 'en' ? "Village Dashboard" : "गाँव डैशबोर्ड"}
                 onPress={() => router.push('/admin/village')}
               />
               <MenuRow
                 emoji="🏠"
-                label="Manage Families"
+                label={locale === 'en' ? "Manage Families" : "परिवार प्रबंधन"}
                 onPress={() => router.push('/admin/village')}
               />
               <MenuRow
                 emoji="➕"
-                label="Add New Family"
+                label={locale === 'en' ? "Add New Family" : "नया परिवार जोड़ें"}
                 onPress={() => router.push('/village/family/add')}
               />
             </>
@@ -170,22 +233,32 @@ export default function ProfileScreen() {
 
         {/* Account Info */}
         <Card variant="bordered">
-          <Text style={styles.sectionTitle}>👤 Account Details</Text>
-          <InfoRow label="Full Name" value={user.name} />
-          <InfoRow label="Email" value={user.email} />
-          {user.mobile && <InfoRow label="Mobile" value={user.mobile} />}
-          <InfoRow label="Role" value={isSuperAdmin ? 'Super Admin' : 'Village Admin'} />
+          <Text style={styles.sectionTitle}>
+            {locale === 'en' ? '👤 Account Details' : '👤 खाता विवरण'}
+          </Text>
+          <InfoRow label={locale === 'en' ? "Full Name" : "पूरा नाम"} value={user.name} />
+          <InfoRow label={locale === 'en' ? "Email" : "ईमेल"} value={user.email} />
+          {user.mobile && <InfoRow label={locale === 'en' ? "Mobile" : "मोबाइल"} value={user.mobile} />}
+          <InfoRow 
+            label={locale === 'en' ? "Role" : "भूमिका"} 
+            value={isSuperAdmin 
+              ? (locale === 'en' ? 'Super Admin' : 'सुपर एडमिन') 
+              : (locale === 'en' ? 'Village Admin' : 'गाँव एडमिन')
+            } 
+          />
           {!isSuperAdmin && user.assignedVillageName && (
-            <InfoRow label="Assigned Village" value={user.assignedVillageName} />
+            <InfoRow label={locale === 'en' ? "Assigned Village" : "सौंपा गया गाँव"} value={user.assignedVillageName} />
           )}
         </Card>
 
         {/* App Info */}
         <Card variant="bordered">
-          <Text style={styles.sectionTitle}>ℹ️ About</Text>
-          <InfoRow label="App Name" value="Gram Parivar" />
-          <InfoRow label="Version" value="1.0.0" />
-          <InfoRow label="Purpose" value="Village Family Heritage Directory" />
+          <Text style={styles.sectionTitle}>
+            {locale === 'en' ? 'ℹ️ About' : 'ℹ️ ऐप के बारे में'}
+          </Text>
+          <InfoRow label={locale === 'en' ? "App Name" : "ऐप का नाम"} value="Vishwakarma Kutumb" />
+          <InfoRow label={locale === 'en' ? "Version" : "संस्करण"} value="1.0.0" />
+          <InfoRow label={locale === 'en' ? "Purpose" : "उद्देश्य"} value={locale === 'en' ? "Village Family Heritage Directory" : "ग्रामीण पारिवारिक विरासत निर्देशिका"} />
         </Card>
 
         {/* Logout */}
@@ -194,7 +267,9 @@ export default function ProfileScreen() {
             colors={['#C62828', '#B71C1C']}
             style={styles.logoutGrad}
           >
-            <Text style={styles.logoutText}>🚪 Sign Out</Text>
+            <Text style={styles.logoutText}>
+              {locale === 'en' ? '🚪 Sign Out' : '🚪 लॉग आउट'}
+            </Text>
           </LinearGradient>
         </TouchableOpacity>
 
@@ -204,7 +279,7 @@ export default function ProfileScreen() {
           <Text style={styles.ornDot}>❋</Text>
           <View style={styles.ornLine} />
         </View>
-        <Text style={styles.footer}>ग्राम परिवार · Gram Parivar</Text>
+        <Text style={styles.footer}>विश्वकर्मा कुटुंब · Vishwakarma Kutumb</Text>
         <View style={{ height: 8 }} />
       </ScrollView>
     </View>
@@ -342,6 +417,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.3,
+  },
+  langSelectorRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  langButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.cream[300],
+    backgroundColor: '#FEFDF8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#3D0C11',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  langButtonActive: {
+    borderColor: COLORS.gold[400],
+    backgroundColor: COLORS.maroon[700],
+  },
+  langButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.maroon[900],
+  },
+  langButtonTextActive: {
+    color: '#FEFDF8',
+    fontWeight: '700',
   },
   footerOrnament: {
     flexDirection: 'row',

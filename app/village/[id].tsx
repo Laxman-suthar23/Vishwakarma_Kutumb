@@ -26,12 +26,20 @@ import { EmptyState } from '@components/ui/EmptyState';
 import { COLORS } from '@constants/colors';
 import { COMMON_GOTRAS } from '@constants/config';
 import type { Family } from '@/types';
+import i18n from '@services/i18n.service';
+import { useLanguageStore } from '@store/language.store';
+import { useConfirm } from '@store/confirm.store';
+import { useToast } from '@store/toast.store';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function VillageDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [searchText, setSearchText] = useState('');
   const [selectedGotra, setSelectedGotra] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const locale = useLanguageStore((s) => s.locale); // dynamic listener
+  const { confirm } = useConfirm();
+  const { showToast } = useToast();
 
   // Queries
   const { data: village, isLoading: isVillageLoading, refetch: refetchVillage } = useVillage(id!);
@@ -65,26 +73,32 @@ export default function VillageDetailScreen() {
   }, [familiesData, searchText, selectedGotra]);
 
   const handleDeleteVillage = () => {
-    Alert.alert(
-      '🚨 Delete Village',
-      `Are you absolutely sure you want to delete ${village?.name}? This will permanently erase the village and cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteVillageMutation.mutateAsync(id!);
-              Alert.alert('Success', 'Village deleted successfully.');
-              router.replace('/(tabs)/villages');
-            } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to delete village.');
-            }
-          },
-        },
-      ]
-    );
+    confirm({
+      title: locale === 'en' ? '🚨 Delete Village' : '🚨 गाँव हटाएं',
+      message: locale === 'en'
+        ? `Are you absolutely sure you want to delete ${village?.name}? This will permanently erase the village and cannot be undone.`
+        : `क्या आप वाकई ${village?.name} को हटाना चाहते हैं? यह गाँव को स्थायी रूप से हटा देगा और इसे वापस नहीं लाया जा सकता।`,
+      confirmText: locale === 'en' ? 'Delete' : 'हटाएं',
+      cancelText: locale === 'en' ? 'Cancel' : 'रद्द करें',
+      isDestructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteVillageMutation.mutateAsync(id!);
+          showToast({
+            type: 'success',
+            title: locale === 'en' ? 'Success' : 'सफलता',
+            message: locale === 'en' ? 'Village deleted successfully.' : 'गाँव सफलतापूर्वक हटा दिया गया।',
+          });
+          router.replace('/(tabs)/villages');
+        } catch (err: any) {
+          showToast({
+            type: 'error',
+            title: locale === 'en' ? 'Error' : 'त्रुटि',
+            message: err.message || (locale === 'en' ? 'Failed to delete village.' : 'गाँव हटाने में विफल।'),
+          });
+        }
+      },
+    });
   };
 
   const renderHeader = () => {
@@ -105,7 +119,9 @@ export default function VillageDetailScreen() {
             <Text style={styles.statEmoji}>🏠</Text>
             <View>
               <Text style={styles.statVal}>{village?.totalFamilies ?? 0}</Text>
-              <Text style={styles.statLbl}>Families</Text>
+              <Text style={styles.statLbl}>
+                {locale === 'en' ? 'Families' : 'परिवार'}
+              </Text>
             </View>
           </View>
           <View style={styles.statDivider} />
@@ -113,18 +129,22 @@ export default function VillageDetailScreen() {
             <Text style={styles.statEmoji}>👥</Text>
             <View>
               <Text style={styles.statVal}>{village?.totalMembers ?? 0}</Text>
-              <Text style={styles.statLbl}>Members</Text>
+              <Text style={styles.statLbl}>
+                {locale === 'en' ? 'Members' : 'सदस्य'}
+              </Text>
             </View>
           </View>
         </View>
 
         {/* Search Bar & Gotra Filters Section */}
         <View style={styles.filtersSection}>
-          <Text style={styles.sectionTitle}>Browse Families</Text>
+          <Text style={styles.sectionTitle}>
+            {locale === 'en' ? 'Browse Families' : 'परिवार ब्राउज़ करें'}
+          </Text>
           <View style={styles.searchBar}>
             <Text style={styles.searchIcon}>🔍</Text>
             <TextInput
-              placeholder="Search by head name, gotra or address..."
+              placeholder={locale === 'en' ? 'Search by head name, gotra or address...' : 'मुखिया का नाम, गोत्र या पता से खोजें...'}
               value={searchText}
               onChangeText={setSearchText}
               style={styles.searchInput}
@@ -138,7 +158,9 @@ export default function VillageDetailScreen() {
           </View>
 
           {/* Gotra chips list */}
-          <Text style={styles.filterTitle}>Filter by Gotra</Text>
+          <Text style={styles.filterTitle}>
+            {locale === 'en' ? 'Filter by Gotra' : 'गोत्र द्वारा फ़िल्टर करें'}
+          </Text>
           <FlatList
             horizontal
             data={[null, ...COMMON_GOTRAS]}
@@ -153,7 +175,7 @@ export default function VillageDetailScreen() {
                   style={[styles.gotraChip, isActive && styles.gotraChipActive]}
                 >
                   <Text style={[styles.gotraChipText, isActive && styles.gotraChipTextActive]}>
-                    {item ? item : '✨ All Gotras'}
+                    {item ? item : (locale === 'en' ? '✨ All Gotras' : '✨ सभी गोत्र')}
                   </Text>
                 </TouchableOpacity>
               );
@@ -168,7 +190,9 @@ export default function VillageDetailScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.maroon[800]} />
-        <Text style={styles.loadingText}>Loading village details...</Text>
+        <Text style={styles.loadingText}>
+          {locale === 'en' ? 'Loading village details...' : 'गाँव का विवरण लोड हो रहा है...'}
+        </Text>
       </View>
     );
   }
@@ -200,7 +224,7 @@ export default function VillageDetailScreen() {
         {/* Back and Admin buttons inside Safe Area */}
         <SafeAreaView edges={['top']} style={styles.heroHeaderActions}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>←</Text>
+            <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
 
           <Text style={styles.heroTitle} numberOfLines={1}>
@@ -231,7 +255,9 @@ export default function VillageDetailScreen() {
               colors={['#D4A017', '#9A6E00']}
               style={styles.floatingAddGrad}
             >
-              <Text style={styles.floatingAddText}>+ Add Family</Text>
+              <Text style={styles.floatingAddText}>
+                {locale === 'en' ? '+ Add Family' : '+ परिवार जोड़ें'}
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
         )}
@@ -267,13 +293,13 @@ export default function VillageDetailScreen() {
             <View style={{ padding: 20 }}>
               <EmptyState
                 icon="🏘️"
-                title={searchText || selectedGotra ? 'No matching families' : 'No Families Registered'}
+                title={searchText || selectedGotra ? (locale === 'en' ? 'No matching families' : 'कोई मिलान नहीं मिला') : (locale === 'en' ? 'No Families Registered' : 'कोई परिवार पंजीकृत नहीं है')}
                 description={
                   searchText || selectedGotra
-                    ? 'Try adjusting your search query or Gotra filter'
-                    : 'Be the first to register a family in this village directory.'
+                    ? (locale === 'en' ? 'Try adjusting your search query or Gotra filter' : 'अपनी खोज या गोत्र फ़िल्टर बदलने का प्रयास करें')
+                    : (locale === 'en' ? 'Be the first to register a family in this village directory.' : 'इस गाँव की निर्देशिका में पहला परिवार पंजीकृत करें।')
                 }
-                actionLabel={canManage && !searchText && !selectedGotra ? 'Register First Family' : undefined}
+                actionLabel={canManage && !searchText && !selectedGotra ? (locale === 'en' ? 'Register First Family' : 'पहला परिवार पंजीकृत करें') : undefined}
                 onAction={
                   canManage
                     ? () =>
@@ -344,12 +370,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  backButtonText: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginTop: -3,
   },
   heroTitle: {
     fontSize: 20,

@@ -2,11 +2,14 @@ import { Tabs } from 'expo-router';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@constants/colors';
+import i18n from '@services/i18n.service';
+import { useLanguageStore } from '@store/language.store';
 
 // ─── Custom Floating Pill Tab Bar ──────────────────────────────────────────
 
 function CustomTabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
+  const locale = useLanguageStore((s) => s.locale); // dynamic listener
 
   return (
     <View style={[
@@ -35,24 +38,24 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 
         // Define emojis and labels based on route name
         let emoji = '🏠';
-        let label = 'Home';
+        let label = i18n.t('tab_home');
         
         switch (route.name) {
           case 'index':
             emoji = '🏠';
-            label = 'Home';
+            label = i18n.t('tab_home');
             break;
           case 'villages':
             emoji = '🏘️';
-            label = 'Villages';
+            label = i18n.t('tab_villages');
             break;
           case 'search':
             emoji = '🔍';
-            label = 'Search';
+            label = i18n.t('tab_search');
             break;
           case 'profile':
             emoji = '👤';
-            label = 'Profile';
+            label = i18n.t('tab_profile');
             break;
         }
 

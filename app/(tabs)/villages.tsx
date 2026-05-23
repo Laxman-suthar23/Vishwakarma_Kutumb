@@ -18,12 +18,15 @@ import { VillageCardFull } from '@components/village/VillageCard';
 import { VillageCardSkeleton } from '@components/ui/SkeletonLoader';
 import { EmptyState } from '@components/ui/EmptyState';
 import { COLORS } from '@constants/colors';
-import type { Village } from '@types/index';
+import type { Village } from '../../types/index';
+import i18n from '@services/i18n.service';
+import { useLanguageStore } from '@store/language.store';
 
 export default function VillagesScreen() {
   const { data, isLoading, refetch } = useVillages();
   const isSuperAdmin = useIsSuperAdmin();
   const qc = useQueryClient();
+  const locale = useLanguageStore((s) => s.locale); // dynamic listener
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
 
@@ -50,10 +53,13 @@ export default function VillagesScreen() {
       <LinearGradient colors={['#3D0C11', '#6B1414']} style={styles.header}>
         <SafeAreaView edges={['top']}>
           <View style={styles.headerContent}>
-            <View>
-              <Text style={styles.headerTitle}>Villages</Text>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <Text style={styles.headerTitle}>{i18n.t('villages_title')}</Text>
               <Text style={styles.headerSub}>
-                {data?.total ?? 0} village{(data?.total ?? 0) !== 1 ? 's' : ''} in the directory
+                {locale === 'en' 
+                  ? `${data?.total ?? 0} village${(data?.total ?? 0) !== 1 ? 's' : ''} in the directory`
+                  : `निर्देशिका में ${data?.total ?? 0} गाँव उपलब्ध हैं`
+                }
               </Text>
             </View>
 
@@ -66,7 +72,9 @@ export default function VillagesScreen() {
                   colors={['#D4A017', '#9A6E00']}
                   style={styles.addButtonGrad}
                 >
-                  <Text style={styles.addButtonText}>+ Add</Text>
+                  <Text style={styles.addButtonText}>
+                    {locale === 'en' ? '+ Add' : '+ जोड़ें'}
+                  </Text>
                 </LinearGradient>
               </TouchableOpacity>
             )}
@@ -76,7 +84,7 @@ export default function VillagesScreen() {
           <View style={styles.searchBar}>
             <Text style={styles.searchIcon}>🔍</Text>
             <TextInput
-              placeholder="Search village..."
+              placeholder={i18n.t('villages_search_placeholder')}
               value={searchText}
               onChangeText={setSearchText}
               style={styles.searchInput}
@@ -115,13 +123,13 @@ export default function VillagesScreen() {
           ListEmptyComponent={
             <EmptyState
               icon="🏘️"
-              title={searchText ? 'No villages found' : 'No Villages Yet'}
+              title={searchText ? i18n.t('no_villages_found') : (locale === 'en' ? 'No Villages Yet' : 'कोई गाँव नहीं मिला')}
               description={
                 searchText
-                  ? `No village matches "${searchText}"`
-                  : 'Start by adding your first village to the directory'
+                  ? (locale === 'en' ? `No village matches "${searchText}"` : `"${searchText}" नाम का कोई गाँव नहीं मिला`)
+                  : (locale === 'en' ? 'Start by adding your first village to the directory' : 'निर्देशिका में अपना पहला गाँव जोड़कर शुरुआत करें')
               }
-              actionLabel={isSuperAdmin && !searchText ? 'Add First Village' : undefined}
+              actionLabel={isSuperAdmin && !searchText ? (locale === 'en' ? 'Add First Village' : 'पहला गाँव जोड़ें') : undefined}
               onAction={
                 isSuperAdmin ? () => router.push('/admin/super/add-village') : undefined
               }

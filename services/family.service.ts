@@ -81,7 +81,7 @@ export const familyService = {
       ID.unique(),
       {
         villageId: data.villageId,
-        villageName: '', // Will be set by caller
+        villageName: (data as any).villageName || '',
         headName: data.headName,
         fatherName: data.fatherName || '',
         mobile: data.mobile,

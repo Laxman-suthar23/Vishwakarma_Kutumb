@@ -5,14 +5,33 @@
  * Execute via: npx tsx scripts/setup-appwrite.ts
  */
 
-import { Client, Databases } from 'node-appwrite';
+import { Client, Databases, Permission, Role } from 'node-appwrite';
 
-// ─── Configuration ────────────────────────────────────────────────────────────
+// ─── Configuration & .env loader ────────────────────────────────────────────────
+import fs from 'fs';
+import path from 'path';
 
-const ENDPOINT = process.env.APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1';
-const PROJECT_ID = process.env.APPWRITE_PROJECT_ID || 'YOUR_PROJECT_ID';
+try {
+  const envPath = path.resolve(process.cwd(), '.env');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    for (const line of envContent.split(/\r?\n/)) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        const key = match[1];
+        let val = match[2] || '';
+        if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+        if (val.startsWith("'") && val.endsWith("'")) val = val.slice(1, -1);
+        process.env[key] = val;
+      }
+    }
+  }
+} catch (e) {}
+
+const ENDPOINT = process.env.APPWRITE_ENDPOINT || process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT || 'https://sgp.cloud.appwrite.io/v1';
+const PROJECT_ID = process.env.APPWRITE_PROJECT_ID || process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID || 'YOUR_PROJECT_ID';
 const API_KEY = process.env.APPWRITE_API_KEY || 'YOUR_SERVER_API_KEY';
-const DATABASE_ID = process.env.APPWRITE_DATABASE_ID || 'YOUR_DATABASE_ID';
+const DATABASE_ID = process.env.APPWRITE_DATABASE_ID || process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID || 'YOUR_DATABASE_ID';
 
 // ─── Client Setup ─────────────────────────────────────────────────────────────
 
@@ -22,6 +41,13 @@ const client = new Client()
   .setKey(API_KEY);
 
 const db = new Databases(client);
+
+const permissions = [
+  Permission.read(Role.any()),
+  Permission.create(Role.users()),
+  Permission.update(Role.users()),
+  Permission.delete(Role.users()),
+];
 
 // Helper for making database updates idempotent (safe to rerun on existing db)
 async function safe(label: string, fn: () => Promise<any>) {
@@ -44,7 +70,8 @@ async function safe(label: string, fn: () => Promise<any>) {
 async function createVillagesCollection() {
   console.log('Creating/Updating villages collection...');
 
-  await safe('villages_collection', () => db.createCollection(DATABASE_ID, 'villages', 'villages'));
+  await safe('villages_collection', () => db.createCollection(DATABASE_ID, 'villages', 'villages', permissions));
+  await safe('villages_permissions', () => db.updateCollection(DATABASE_ID, 'villages', 'villages', permissions));
 
   await safe('name', () => db.createStringAttribute(DATABASE_ID, 'villages', 'name', 255, true));
   await safe('description', () => db.createStringAttribute(DATABASE_ID, 'villages', 'description', 1000, false));
@@ -61,7 +88,8 @@ async function createVillagesCollection() {
 async function createFamiliesCollection() {
   console.log('Creating/Updating families collection...');
 
-  await safe('families_collection', () => db.createCollection(DATABASE_ID, 'families', 'families'));
+  await safe('families_collection', () => db.createCollection(DATABASE_ID, 'families', 'families', permissions));
+  await safe('families_permissions', () => db.updateCollection(DATABASE_ID, 'families', 'families', permissions));
 
   await safe('villageId', () => db.createStringAttribute(DATABASE_ID, 'families', 'villageId', 255, true));
   await safe('villageName', () => db.createStringAttribute(DATABASE_ID, 'families', 'villageName', 255, true));
@@ -86,7 +114,8 @@ async function createFamiliesCollection() {
 async function createMembersCollection() {
   console.log('Creating/Updating members collection...');
 
-  await safe('members_collection', () => db.createCollection(DATABASE_ID, 'members', 'members'));
+  await safe('members_collection', () => db.createCollection(DATABASE_ID, 'members', 'members', permissions));
+  await safe('members_permissions', () => db.updateCollection(DATABASE_ID, 'members', 'members', permissions));
 
   await safe('familyId', () => db.createStringAttribute(DATABASE_ID, 'members', 'familyId', 255, true));
   await safe('name', () => db.createStringAttribute(DATABASE_ID, 'members', 'name', 255, true));
@@ -122,7 +151,8 @@ async function createMembersCollection() {
 async function createAdminsCollection() {
   console.log('Creating/Updating admins collection...');
 
-  await safe('admins_collection', () => db.createCollection(DATABASE_ID, 'admins', 'admins'));
+  await safe('admins_collection', () => db.createCollection(DATABASE_ID, 'admins', 'admins', permissions));
+  await safe('admins_permissions', () => db.updateCollection(DATABASE_ID, 'admins', 'admins', permissions));
 
   await safe('userId', () => db.createStringAttribute(DATABASE_ID, 'admins', 'userId', 255, true));
   await safe('name', () => db.createStringAttribute(DATABASE_ID, 'admins', 'name', 255, true));
@@ -145,6 +175,13 @@ async function createAdminsCollection() {
 async function setup() {
   console.log('\n🏛️  Gram Parivar — Robust Appwrite Database Setup\n');
   console.log('===========================================\n');
+
+  if (!API_KEY || API_KEY === 'YOUR_SERVER_API_KEY') {
+    console.error('❌ Error: APPWRITE_API_KEY is not defined!');
+    console.error('\nTo configure the collection permissions automatically, please run this script with your Appwrite Server API Key:');
+    console.error('  $env:APPWRITE_API_KEY="your-key-here"; npx tsx scripts/setup-appwrite.ts\n');
+    return;
+  }
 
   try {
     await createVillagesCollection();

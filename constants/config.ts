@@ -81,10 +81,9 @@ export const RELATION_LABELS: Record<string, string> = {
 
 // ─── Common Gotra List ────────────────────────────────────────────────────────
 export const COMMON_GOTRAS = [
-  'Bharadwaj', 'Kashyap', 'Vashisht', 'Gautam', 'Atri',
-  'Vishwamitra', 'Jamadagni', 'Angiras', 'Agastya', 'Bhrigu',
-  'Garg', 'Kaushik', 'Parashar', 'Sandilya', 'Mudgal',
-  'Mankad', 'Shrivatsa', 'Vatsa', 'Upamanyu', 'Harita',
+  'लूंजा',
+  'कुलरिया',
+  'पङमा',
 ];
 
 // ─── Animation Durations ──────────────────────────────────────────────────────

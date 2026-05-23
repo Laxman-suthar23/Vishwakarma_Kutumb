@@ -110,6 +110,8 @@ export function useCreateFamily() {
         ...familyData,
         villageName,
       } as any);
+      // Automatically update village totalFamilies and totalMembers counts
+      await villageService.updateVillageStats(family.villageId);
       return family;
     },
     onSuccess: (family) => {
@@ -117,6 +119,7 @@ export function useCreateFamily() {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.allFamilies });
       qc.invalidateQueries({ queryKey: QUERY_KEYS.recentFamilies(family.villageId) });
       qc.invalidateQueries({ queryKey: QUERY_KEYS.villages });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.village(family.villageId) });
     },
   });
 }
@@ -136,12 +139,16 @@ export function useUpdateFamily() {
 export function useDeleteFamily() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ familyId, villageId }: { familyId: string; villageId: string }) =>
-      familyService.deleteFamily(familyId),
+    mutationFn: async ({ familyId, villageId }: { familyId: string; villageId: string }) => {
+      await familyService.deleteFamily(familyId);
+      // Automatically update village stats after deletion
+      await villageService.updateVillageStats(villageId);
+    },
     onSuccess: (_, { villageId }) => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.families(villageId) });
       qc.invalidateQueries({ queryKey: QUERY_KEYS.allFamilies });
       qc.invalidateQueries({ queryKey: QUERY_KEYS.villages });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.village(villageId) });
     },
   });
 }
@@ -159,10 +166,23 @@ export function useMembers(familyId: string) {
 export function useCreateMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: MemberFormData) => memberService.createMember(data),
+    mutationFn: async (data: MemberFormData) => {
+      const member = await memberService.createMember(data);
+      // Recalculate member count for family
+      const members = await memberService.listMembers(data.familyId);
+      await familyService.updateMemberCount(data.familyId, members.length);
+      
+      // Update global village stats
+      const family = await familyService.getFamily(data.familyId);
+      await villageService.updateVillageStats(family.villageId);
+      
+      return member;
+    },
     onSuccess: (member) => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.members(member.familyId) });
       qc.invalidateQueries({ queryKey: QUERY_KEYS.family(member.familyId) });
+      // Invalidate village/villages queries to refresh the live metrics
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.villages });
     },
   });
 }
@@ -181,11 +201,20 @@ export function useUpdateMember() {
 export function useDeleteMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ memberId, familyId }: { memberId: string; familyId: string }) =>
-      memberService.deleteMember(memberId),
+    mutationFn: async ({ memberId, familyId }: { memberId: string; familyId: string }) => {
+      await memberService.deleteMember(memberId);
+      // Recalculate member count for family
+      const members = await memberService.listMembers(familyId);
+      await familyService.updateMemberCount(familyId, members.length);
+      
+      // Update global village stats
+      const family = await familyService.getFamily(familyId);
+      await villageService.updateVillageStats(family.villageId);
+    },
     onSuccess: (_, { familyId }) => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.members(familyId) });
       qc.invalidateQueries({ queryKey: QUERY_KEYS.family(familyId) });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.villages });
     },
   });
 }

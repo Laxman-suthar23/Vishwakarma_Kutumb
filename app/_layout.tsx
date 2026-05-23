@@ -7,6 +7,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '@store/auth.store';
 
+import { useLanguageStore } from '@store/language.store';
+import { ConfirmModal } from '@components/ui/ConfirmModal';
+import { Toast } from '@components/ui/Toast';
+
 // Keep splash screen visible while loading
 SplashScreen.preventAutoHideAsync();
 
@@ -25,11 +29,15 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  const { restoreSession, isRestoring } = useAuthStore();
+  const { restoreSession } = useAuthStore();
+  const { initLanguage } = useLanguageStore();
 
   useEffect(() => {
     const init = async () => {
-      await restoreSession();
+      await Promise.all([
+        restoreSession(),
+        initLanguage()
+      ]);
       await SplashScreen.hideAsync();
     };
     init();
@@ -75,6 +83,8 @@ export default function RootLayout() {
               options={{ animation: 'slide_from_right' }}
             />
           </Stack>
+          <ConfirmModal />
+          <Toast />
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

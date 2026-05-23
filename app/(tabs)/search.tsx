@@ -17,7 +17,9 @@ import { memberService } from '@services/member.service';
 import { FamilyCard } from '@components/family/FamilyCard';
 import { EmptyState } from '@components/ui/EmptyState';
 import { COLORS } from '@constants/colors';
-import type { Family, Member } from '@types/index';
+import type { Family, Member } from '../../types/index';
+import i18n from '@services/i18n.service';
+import { useLanguageStore } from '@store/language.store';
 
 type FilterType = 'all' | 'families' | 'members';
 
@@ -34,9 +36,16 @@ export default function SearchScreen() {
   const [families, setFamilies] = useState<Family[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const locale = useLanguageStore((s) => s.locale); // dynamic listener
 
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
   const inputRef = useRef<TextInput>(null);
+
+  const getChipLabel = (val: FilterType) => {
+    if (val === 'all') return locale === 'en' ? 'All' : 'सभी';
+    if (val === 'families') return locale === 'en' ? 'Families' : 'परिवार';
+    return locale === 'en' ? 'Members' : 'सदस्य';
+  };
 
   const runSearch = useCallback(async (q: string, filter: FilterType) => {
     if (!q.trim() || q.trim().length < 2) {
@@ -94,15 +103,17 @@ export default function SearchScreen() {
       {/* Header */}
       <LinearGradient colors={['#3D0C11', '#6B1414']} style={styles.header}>
         <SafeAreaView edges={['top']}>
-          <Text style={styles.headerTitle}>Search Directory</Text>
-          <Text style={styles.headerSub}>Find families, members, gotras and more</Text>
+          <Text style={styles.headerTitle}>{i18n.t('search_title')}</Text>
+          <Text style={styles.headerSub}>
+            {locale === 'en' ? 'Find families, members, gotras and more' : 'परिवार, सदस्य, गोत्र आदि खोजें'}
+          </Text>
 
           {/* Search Input */}
           <View style={styles.searchContainer}>
             <Text style={styles.searchIcon}>{isSearching ? '⌛' : '🔍'}</Text>
             <TextInput
               ref={inputRef}
-              placeholder="Search by name, gotra, mobile..."
+              placeholder={i18n.t('search_placeholder')}
               value={query}
               onChangeText={handleQueryChange}
               style={styles.searchInput}
@@ -140,7 +151,7 @@ export default function SearchScreen() {
                     activeFilter === chip.value && styles.filterLabelActive,
                   ]}
                 >
-                  {chip.label}
+                  {getChipLabel(chip.value)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -159,8 +170,12 @@ export default function SearchScreen() {
           <View style={styles.resultCount}>
             <Text style={styles.resultCountText}>
               {totalResults === 0
-                ? 'No results found'
-                : `${totalResults} result${totalResults !== 1 ? 's' : ''} for "${query}"`}
+                ? i18n.t('search_no_results')
+                : (locale === 'en' 
+                    ? `${totalResults} result${totalResults !== 1 ? 's' : ''} for "${query}"`
+                    : `"${query}" के लिए ${totalResults} परिणाम मिले`
+                  )
+              }
             </Text>
           </View>
         )}
@@ -168,14 +183,20 @@ export default function SearchScreen() {
         {isSearching && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator color={COLORS.gold[500]} size="large" />
-            <Text style={styles.loadingText}>Searching directory...</Text>
+            <Text style={styles.loadingText}>
+              {locale === 'en' ? 'Searching directory...' : 'निर्देशिका खोजी जा रही है...'}
+            </Text>
           </View>
         )}
 
         {/* Family Results */}
         {families.length > 0 && (
           <>
-            <SectionLabel title="Families" count={families.length} emoji="🏠" />
+            <SectionLabel 
+              title={locale === 'en' ? "Families" : "परिवार"} 
+              count={families.length} 
+              emoji="🏠" 
+            />
             {families.map((family) => (
               <FamilyCard
                 key={family.$id}
@@ -190,7 +211,11 @@ export default function SearchScreen() {
         {/* Member Results */}
         {members.length > 0 && (
           <>
-            <SectionLabel title="Members" count={members.length} emoji="👤" />
+            <SectionLabel 
+              title={locale === 'en' ? "Members" : "सदस्य"} 
+              count={members.length} 
+              emoji="👤" 
+            />
             {members.map((member) => (
               <MemberSearchResult key={member.$id} member={member} />
             ))}
@@ -201,8 +226,11 @@ export default function SearchScreen() {
         {!isSearching && hasSearched && totalResults === 0 && (
           <EmptyState
             icon="🔍"
-            title="No results found"
-            description={`We couldn't find anything for "${query}". Try a different name, mobile number, or gotra.`}
+            title={i18n.t('search_no_results')}
+            description={locale === 'en' 
+              ? `We couldn't find anything for "${query}". Try a different name, mobile number, or gotra.`
+              : `हमें "${query}" के लिए कुछ नहीं मिला। कृपया दूसरा नाम, मोबाइल नंबर या गोत्र आज़माएँ।`
+            }
           />
         )}
 
@@ -235,43 +263,66 @@ const SectionLabel = ({
   </View>
 );
 
-const MemberSearchResult = ({ member }: { member: Member }) => (
-  <View style={styles.memberResult}>
-    <View style={styles.memberResultIcon}>
-      <Text style={{ fontSize: 20 }}>
-        {member.gender === 'MALE' ? '👨' : '👩'}
-      </Text>
-    </View>
-    <View style={{ flex: 1 }}>
-      <Text style={styles.memberName}>{member.name}</Text>
-      <Text style={styles.memberMeta}>{member.relation} · {member.educationType}</Text>
-    </View>
-    <TouchableOpacity
-      onPress={() => router.push(`/village/family/${member.familyId}`)}
-      style={styles.viewFamilyBtn}
-    >
-      <Text style={styles.viewFamilyText}>View Family</Text>
-    </TouchableOpacity>
-  </View>
-);
+const MemberSearchResult = ({ member }: { member: Member }) => {
+  const locale = useLanguageStore((s) => s.locale);
+  
+  const relationTrans = () => {
+    if (member.relation === 'Head') return locale === 'en' ? 'Head' : 'मुखिया';
+    if (member.relation === 'Wife') return locale === 'en' ? 'Wife' : 'पत्नी';
+    if (member.relation === 'Son') return locale === 'en' ? 'Son' : 'पुत्र';
+    if (member.relation === 'Daughter') return locale === 'en' ? 'Daughter' : 'पुत्री';
+    if (member.relation === 'Father') return locale === 'en' ? 'Father' : 'पिता';
+    if (member.relation === 'Mother') return locale === 'en' ? 'Mother' : 'माता';
+    if (member.relation === 'Brother') return locale === 'en' ? 'Brother' : 'भाई';
+    if (member.relation === 'Sister') return locale === 'en' ? 'Sister' : 'बहन';
+    return member.relation;
+  };
 
-const SearchHints = () => (
-  <View style={styles.hints}>
-    <Text style={styles.hintsTitle}>🔍 Search Tips</Text>
-    {[
-      { emoji: '👤', text: 'Search by family head name' },
-      { emoji: '📱', text: 'Search by mobile number' },
-      { emoji: '🏷️', text: 'Search by Gotra (e.g., Kashyap, Bharadwaj)' },
-      { emoji: '🏘️', text: 'Search by village name' },
-      { emoji: '💼', text: 'Search by occupation or education' },
-    ].map((hint, i) => (
-      <View key={i} style={styles.hintItem}>
-        <Text style={styles.hintEmoji}>{hint.emoji}</Text>
-        <Text style={styles.hintText}>{hint.text}</Text>
+  return (
+    <View style={styles.memberResult}>
+      <View style={styles.memberResultIcon}>
+        <Text style={{ fontSize: 20 }}>
+          {member.gender === 'MALE' ? '👨' : '👩'}
+        </Text>
       </View>
-    ))}
-  </View>
-);
+      <View style={{ flex: 1 }}>
+        <Text style={styles.memberName}>{member.name}</Text>
+        <Text style={styles.memberMeta}>
+          {relationTrans()} · {member.educationType}
+        </Text>
+      </View>
+      <TouchableOpacity
+        onPress={() => router.push(`/village/family/${member.familyId}`)}
+        style={styles.viewFamilyBtn}
+      >
+        <Text style={styles.viewFamilyText}>
+          {locale === 'en' ? 'View Family' : 'परिवार देखें'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+const SearchHints = () => {
+  const locale = useLanguageStore((s) => s.locale);
+  return (
+    <View style={styles.hints}>
+      <Text style={styles.hintsTitle}>🔍 {i18n.t('search_hints_title')}</Text>
+      {[
+        { emoji: '👤', text: locale === 'en' ? 'Search by family head name' : 'परिवार के मुखिया के नाम से खोजें' },
+        { emoji: '📱', text: locale === 'en' ? 'Search by mobile number' : 'मोबाइल नंबर से खोजें' },
+        { emoji: '🏷️', text: i18n.t('search_hint_gotra') },
+        { emoji: '🏘️', text: i18n.t('search_hint_village') },
+        { emoji: '💼', text: i18n.t('search_hint_business') },
+      ].map((hint, i) => (
+        <View key={i} style={styles.hintItem}>
+          <Text style={styles.hintEmoji}>{hint.emoji}</Text>
+          <Text style={styles.hintText}>{hint.text}</Text>
+        </View>
+      ))}
+    </View>
+  );
+};
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 

@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,6 +36,11 @@ import { COLORS } from '@constants/colors';
 import { RELATION_LABELS, EDUCATION_TYPES, SCHOOL_STANDARDS } from '@constants/config';
 import { formatMobile } from '@utils/helpers';
 import type { Member, MemberFormData, RelationType, EducationType, Gender } from '@/types';
+import i18n from '@services/i18n.service';
+import { useLanguageStore } from '@store/language.store';
+import { useConfirm } from '@store/confirm.store';
+import { useToast } from '@store/toast.store';
+import { Ionicons } from '@expo/vector-icons';
 
 const emptyMemberForm: Partial<MemberFormData> = {
   name: '',
@@ -52,11 +58,15 @@ const emptyMemberForm: Partial<MemberFormData> = {
 export default function FamilyDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [refreshing, setRefreshing] = useState(false);
+  const locale = useLanguageStore((s) => s.locale); // dynamic listener
+  const { confirm } = useConfirm();
+  const { showToast } = useToast();
 
   // Modal States
   const [modalVisible, setModalVisible] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [memberForm, setMemberForm] = useState<Partial<MemberFormData>>(emptyMemberForm);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Queries & Mutations
   const { data: family, isLoading: isFamilyLoading, refetch: refetchFamily } = useFamily(id!);
@@ -73,6 +83,34 @@ export default function FamilyDetailScreen() {
   const { villageId: assignedVillageId } = useAssignedVillage();
   const canManage = isSuperAdmin || (isVillageAdmin && assignedVillageId === family?.villageId);
 
+  const getRelationLabel = (rel: string) => {
+    if (locale === 'hi') {
+      if (rel === 'SON') return 'पुत्र';
+      if (rel === 'DAUGHTER') return 'पुत्री';
+      if (rel === 'SPOUSE') return 'जीवनसाथी';
+      if (rel === 'FATHER') return 'पिता';
+      if (rel === 'MOTHER') return 'माता';
+      if (rel === 'BROTHER') return 'भाई';
+      if (rel === 'SISTER') return 'बहन';
+      if (rel === 'GRANDFATHER') return 'दादा/नाना';
+      if (rel === 'GRANDMOTHER') return 'दादी/नानी';
+      return 'अन्य';
+    }
+    return RELATION_LABELS[rel] || rel;
+  };
+
+  const getEducationLabel = (edu: string) => {
+    if (locale === 'hi') {
+      if (edu === 'SCHOOL') return 'स्कूल';
+      if (edu === 'COLLEGE') return 'कॉलेज';
+      if (edu === 'GRADUATED') return 'स्नातक';
+      if (edu === 'WORKING') return 'कार्यरत';
+      if (edu === 'BUSINESS') return 'व्यवसाय';
+      return 'अन्य';
+    }
+    return (EDUCATION_TYPES as any)[edu] || edu;
+  };
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([refetchFamily(), refetchMembers()]);
@@ -80,55 +118,63 @@ export default function FamilyDetailScreen() {
   }, [id, refetchFamily, refetchMembers]);
 
   const handleDeleteFamily = () => {
-    Alert.alert(
-      '🚨 Delete Family',
-      `Are you sure you want to delete ${family?.headName}'s family and all associated members? This action is permanent.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteFamilyMutation.mutateAsync({
-                familyId: id!,
-                villageId: family?.villageId || '',
-              });
-              Alert.alert('Success', 'Family deleted successfully.');
-              router.back();
-            } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to delete family.');
-            }
-          },
-        },
-      ]
-    );
+    confirm({
+      title: locale === 'en' ? '🚨 Delete Family' : '🚨 परिवार हटाएं',
+      message: locale === 'en'
+        ? `Are you sure you want to delete ${family?.headName}'s family and all associated members? This action is permanent.`
+        : `क्या आप वाकई ${family?.headName} का परिवार और उससे जुड़े सभी सदस्यों को हटाना चाहते हैं? यह क्रिया स्थायी है।`,
+      confirmText: locale === 'en' ? 'Delete' : 'हटाएं',
+      cancelText: locale === 'en' ? 'Cancel' : 'रद्द करें',
+      isDestructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteFamilyMutation.mutateAsync({
+            familyId: id!,
+            villageId: family?.villageId || '',
+          });
+          Alert.alert(
+            locale === 'en' ? 'Deleted' : 'हटाया गया',
+            locale === 'en' ? 'Family deleted successfully.' : 'परिवार सफलतापूर्वक हटा दिया गया।'
+          );
+          router.back();
+        } catch (err: any) {
+          Alert.alert(
+            locale === 'en' ? 'Error' : 'त्रुटि',
+            err.message || (locale === 'en' ? 'Failed to delete family.' : 'परिवार हटाने में विफल।')
+          );
+        }
+      },
+    });
   };
 
   const handleDeleteMember = (memberId: string) => {
     const memberName = members?.find((m) => m.$id === memberId)?.name || 'this member';
-    Alert.alert(
-      'Delete Member',
-      `Are you sure you want to delete ${memberName} from this family directory?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteMemberMutation.mutateAsync({
-                memberId,
-                familyId: id!,
-              });
-              Alert.alert('Success', 'Member deleted successfully.');
-            } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to delete member.');
-            }
-          },
-        },
-      ]
-    );
+    confirm({
+      title: locale === 'en' ? '🗑️ Delete Member' : '🗑️ सदस्य हटाएं',
+      message: locale === 'en'
+        ? `Are you sure you want to delete ${memberName} from this family directory?`
+        : `क्या आप वाकई इस परिवार निर्देशिका से ${memberName} को हटाना चाहते हैं?`,
+      confirmText: locale === 'en' ? 'Delete' : 'हटाएं',
+      cancelText: locale === 'en' ? 'Cancel' : 'रद्द करें',
+      isDestructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteMemberMutation.mutateAsync({
+            memberId,
+            familyId: id!,
+          });
+          Alert.alert(
+            locale === 'en' ? 'Deleted' : 'हटाया गया',
+            locale === 'en' ? 'Member deleted successfully.' : 'सदस्य सफलतापूर्वक हटा दिया गया।'
+          );
+        } catch (err: any) {
+          Alert.alert(
+            locale === 'en' ? 'Error' : 'त्रुटि',
+            err.message || (locale === 'en' ? 'Failed to delete member.' : 'सदस्य हटाने में विफल।')
+          );
+        }
+      },
+    });
   };
 
   const handleOpenAddModal = () => {
@@ -160,13 +206,17 @@ export default function FamilyDetailScreen() {
   };
 
   const validateMemberForm = () => {
-    if (!memberForm.name?.trim()) return 'Name is required.';
-    if (!memberForm.dateOfBirth?.trim()) return 'Date of Birth is required.';
+    if (!memberForm.name?.trim()) {
+      return locale === 'en' ? 'Name is required.' : 'नाम आवश्यक है।';
+    }
+    if (!memberForm.dateOfBirth?.trim()) {
+      return locale === 'en' ? 'Date of Birth is required.' : 'जन्म तिथि आवश्यक है।';
+    }
     
     // Quick YYYY-MM-DD check
     const dobRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dobRegex.test(memberForm.dateOfBirth)) {
-      return 'Date of Birth must be in YYYY-MM-DD format.';
+      return locale === 'en' ? 'Date of Birth must be in YYYY-MM-DD format.' : 'जन्म तिथि YYYY-MM-DD प्रारूप में होनी चाहिए।';
     }
 
     return null;
@@ -175,7 +225,11 @@ export default function FamilyDetailScreen() {
   const handleSaveMember = async () => {
     const validationError = validateMemberForm();
     if (validationError) {
-      Alert.alert('Validation Error', validationError);
+      showToast({
+        type: 'warning',
+        title: locale === 'en' ? 'Validation Error' : 'सत्यापन त्रुटि',
+        message: validationError,
+      });
       return;
     }
 
@@ -185,14 +239,26 @@ export default function FamilyDetailScreen() {
           id: editingMember.$id,
           data: memberForm,
         });
-        Alert.alert('Success', 'Member updated successfully.');
+        showToast({
+          type: 'success',
+          title: locale === 'en' ? 'Success' : 'सफलता',
+          message: locale === 'en' ? 'Member updated successfully.' : 'सदस्य सफलतापूर्वक अपडेट किया गया।',
+        });
       } else {
         await createMemberMutation.mutateAsync(memberForm as MemberFormData);
-        Alert.alert('Success', 'Member added successfully.');
+        showToast({
+          type: 'success',
+          title: locale === 'en' ? 'Success' : 'सफलता',
+          message: locale === 'en' ? 'Member added successfully.' : 'सदस्य सफलतापूर्वक जोड़ा गया।',
+        });
       }
       setModalVisible(false);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save member details.');
+      showToast({
+        type: 'error',
+        title: locale === 'en' ? 'Error' : 'त्रुटि',
+        message: err.message || (locale === 'en' ? 'Failed to save member details.' : 'सदस्य विवरण सहेजने में विफल।'),
+      });
     }
   };
 
@@ -212,11 +278,15 @@ export default function FamilyDetailScreen() {
           <View style={styles.headTextContainer}>
             <Text style={styles.headTitle}>{family.headName}</Text>
             {family.fatherName && (
-              <Text style={styles.fatherName}>S/o Shri {family.fatherName}</Text>
+              <Text style={styles.fatherName}>
+                {locale === 'en' ? `S/o Shri ${family.fatherName}` : `पुत्र श्री ${family.fatherName}`}
+              </Text>
             )}
             <View style={styles.badgeRow}>
               <View style={styles.gotraBadge}>
-                <Text style={styles.gotraText}>Gotra: {family.gotra}</Text>
+                <Text style={styles.gotraText}>
+                  {locale === 'en' ? `Gotra: ${family.gotra}` : `गोत्र: ${family.gotra}`}
+                </Text>
               </View>
               <View style={styles.villageBadge}>
                 <Text style={styles.villageText}>📍 {family.villageName}</Text>
@@ -227,19 +297,25 @@ export default function FamilyDetailScreen() {
 
         {/* Contact & Address Details Card */}
         <View style={styles.detailsCard}>
-          <Text style={styles.cardHeaderTitle}>Contact & Location</Text>
+          <Text style={styles.cardHeaderTitle}>
+            {locale === 'en' ? 'Contact & Location' : 'संपर्क और स्थान'}
+          </Text>
           
           <View style={styles.detailRow}>
             <Text style={styles.detailEmoji}>📱</Text>
             <View style={styles.detailTextWrapper}>
-              <Text style={styles.detailLabel}>Primary Contact</Text>
+              <Text style={styles.detailLabel}>
+                {locale === 'en' ? 'Primary Contact' : 'प्राथमिक संपर्क'}
+              </Text>
               <Text style={styles.detailVal}>{formatMobile(family.mobile)}</Text>
             </View>
             <TouchableOpacity
               onPress={() => Linking.openURL(`tel:${family.mobile}`)}
               style={styles.callActionButton}
             >
-              <Text style={styles.callIconText}>📞 Call</Text>
+              <Text style={styles.callIconText}>
+                {locale === 'en' ? '📞 Call' : '📞 कॉल'}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -247,14 +323,18 @@ export default function FamilyDetailScreen() {
             <View style={styles.detailRow}>
               <Text style={styles.detailEmoji}>📞</Text>
               <View style={styles.detailTextWrapper}>
-                <Text style={styles.detailLabel}>Alternate Contact</Text>
+                <Text style={styles.detailLabel}>
+                  {locale === 'en' ? 'Alternate Contact' : 'वैकल्पिक संपर्क'}
+                </Text>
                 <Text style={styles.detailVal}>{formatMobile(family.altMobile)}</Text>
               </View>
               <TouchableOpacity
                 onPress={() => Linking.openURL(`tel:${family.altMobile}`)}
                 style={styles.callActionButton}
               >
-                <Text style={styles.callIconText}>📞 Call</Text>
+                <Text style={styles.callIconText}>
+                  {locale === 'en' ? '📞 Call' : '📞 कॉल'}
+                </Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -264,7 +344,9 @@ export default function FamilyDetailScreen() {
           <View style={styles.detailRow}>
             <Text style={styles.detailEmoji}>📍</Text>
             <View style={styles.detailTextWrapper}>
-              <Text style={styles.detailLabel}>Address</Text>
+              <Text style={styles.detailLabel}>
+                {locale === 'en' ? 'Address' : 'पता'}
+              </Text>
               <Text style={styles.addressVal}>{family.address}</Text>
             </View>
           </View>
@@ -287,20 +369,28 @@ export default function FamilyDetailScreen() {
               }
               style={styles.editBtn}
             >
-              <Text style={styles.editBtnText}>✏️ Edit Family</Text>
+              <Text style={styles.editBtnText}>
+                {locale === 'en' ? '✏️ Edit Family' : '✏️ परिवार संपादित करें'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleDeleteFamily} style={styles.deleteBtn}>
-              <Text style={styles.deleteBtnText}>🗑️ Delete Family</Text>
+              <Text style={styles.deleteBtnText}>
+                {locale === 'en' ? '🗑️ Delete Family' : '🗑️ परिवार हटाएं'}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
 
         {/* Members section header */}
         <View style={styles.membersHeaderRow}>
-          <Text style={styles.membersSectionTitle}>Family Members</Text>
+          <Text style={styles.membersSectionTitle}>
+            {locale === 'en' ? 'Family Members' : 'परिवार के सदस्य'}
+          </Text>
           {canManage && (
             <TouchableOpacity onPress={handleOpenAddModal} style={styles.addMemberBtn}>
-              <Text style={styles.addMemberBtnText}>+ Add Member</Text>
+              <Text style={styles.addMemberBtnText}>
+                {locale === 'en' ? '+ Add Member' : '+ सदस्य जोड़ें'}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -312,7 +402,9 @@ export default function FamilyDetailScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.maroon[800]} />
-        <Text style={styles.loadingText}>Loading family profile...</Text>
+        <Text style={styles.loadingText}>
+          {locale === 'en' ? 'Loading family profile...' : 'परिवार प्रोफ़ाइल लोड हो रही है...'}
+        </Text>
       </View>
     );
   }
@@ -324,12 +416,12 @@ export default function FamilyDetailScreen() {
         <SafeAreaView edges={['top']}>
           <View style={styles.navHeaderRow}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-              <Text style={styles.backBtnText}>← Back</Text>
+              <Ionicons name="chevron-back" size={20} color={COLORS.gold.light} />
             </TouchableOpacity>
             <Text style={styles.navHeaderTitle} numberOfLines={1}>
-              {family?.headName}'s Family
+              {locale === 'en' ? `${family?.headName}'s Family` : `${family?.headName} का परिवार`}
             </Text>
-            <View style={{ width: 64 }} />
+            <View style={{ width: 36 }} />
           </View>
         </SafeAreaView>
       </LinearGradient>
@@ -365,9 +457,9 @@ export default function FamilyDetailScreen() {
             <View style={{ padding: 20 }}>
               <EmptyState
                 icon="👥"
-                title="No Members Registered"
-                description="No additional family members are listed. Register other family members below."
-                actionLabel={canManage ? 'Add First Member' : undefined}
+                title={locale === 'en' ? 'No Members Registered' : 'कोई सदस्य पंजीकृत नहीं है'}
+                description={locale === 'en' ? 'No additional family members are listed. Register other family members below.' : 'कोई अतिरिक्त परिवार के सदस्य सूचीबद्ध नहीं हैं। नीचे अन्य सदस्यों को पंजीकृत करें।'}
+                actionLabel={canManage ? (locale === 'en' ? 'Add First Member' : 'पहला सदस्य जोड़ें') : undefined}
                 onAction={canManage ? handleOpenAddModal : undefined}
               />
             </View>
@@ -393,24 +485,29 @@ export default function FamilyDetailScreen() {
 
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
-                  {editingMember ? '✏️ Edit Member' : '👥 Add Family Member'}
+                  {editingMember 
+                    ? (locale === 'en' ? '✏️ Edit Member' : '✏️ सदस्य संपादित करें') 
+                    : (locale === 'en' ? '👥 Add Family Member' : '👥 परिवार सदस्य जोड़ें')
+                  }
                 </Text>
                 <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalCloseBtn}>
                   <Text style={styles.modalCloseBtnText}>✕</Text>
                 </TouchableOpacity>
               </View>
 
-              <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+              <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
                 <Input
-                  label="Full Name"
-                  placeholder="e.g. Ramesh Suthar"
+                  label={locale === 'en' ? 'Full Name' : 'पूरा नाम'}
+                  placeholder={locale === 'en' ? 'e.g. Ramesh Suthar' : 'उदा. रमेश सुथार'}
                   value={memberForm.name || ''}
                   onChangeText={(v) => setMemberForm((p) => ({ ...p, name: v }))}
                   required
                 />
 
                 {/* Relation picker */}
-                <Text style={styles.fieldLabel}>Relation with Head</Text>
+                <Text style={styles.fieldLabel}>
+                  {locale === 'en' ? 'Relation with Head' : 'मुखिया के साथ संबंध'}
+                </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                   <View style={styles.chipsRow}>
                     {Object.keys(RELATION_LABELS).map((rel) => {
@@ -422,7 +519,7 @@ export default function FamilyDetailScreen() {
                           style={[styles.gotraChip, isActive && styles.gotraChipActive]}
                         >
                           <Text style={[styles.gotraChipText, isActive && styles.gotraChipTextActive]}>
-                            {RELATION_LABELS[rel]}
+                            {getRelationLabel(rel)}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -431,7 +528,9 @@ export default function FamilyDetailScreen() {
                 </ScrollView>
 
                 {/* Gender selector */}
-                <Text style={styles.fieldLabel}>Gender</Text>
+                <Text style={styles.fieldLabel}>
+                  {locale === 'en' ? 'Gender' : 'लिंग'}
+                </Text>
                 <View style={styles.genderRow}>
                   {(['MALE', 'FEMALE', 'OTHER'] as Gender[]).map((g) => {
                     const isActive = memberForm.gender === g;
@@ -442,25 +541,56 @@ export default function FamilyDetailScreen() {
                         style={[styles.genderChip, isActive && styles.genderChipActive]}
                       >
                         <Text style={[styles.genderChipText, isActive && styles.genderChipTextActive]}>
-                          {g === 'MALE' ? '👨 Male' : g === 'FEMALE' ? '👩 Female' : '🧑 Other'}
+                          {g === 'MALE' 
+                            ? (locale === 'en' ? '👨 Male' : '👨 पुरुष') 
+                            : g === 'FEMALE' 
+                              ? (locale === 'en' ? '👩 Female' : '👩 महिला') 
+                              : (locale === 'en' ? '🧑 Other' : '🧑 अन्य')
+                          }
                         </Text>
                       </TouchableOpacity>
                     );
                   })}
                 </View>
 
-                <Input
-                  label="Date of Birth"
-                  placeholder="YYYY-MM-DD (e.g. 1996-12-05)"
-                  value={memberForm.dateOfBirth || ''}
-                  onChangeText={(v) => setMemberForm((p) => ({ ...p, dateOfBirth: v }))}
-                  keyboardType="numeric"
-                  required
-                />
+                <TouchableOpacity onPress={() => setShowDatePicker(true)}>
+                  <View pointerEvents="none">
+                    <Input
+                      label={locale === 'en' ? 'Date of Birth' : 'जन्म तिथि'}
+                      placeholder={locale === 'en' ? 'Select Date of Birth' : 'जन्म तिथि चुनें'}
+                      value={memberForm.dateOfBirth || ''}
+                      editable={false}
+                      required
+                    />
+                  </View>
+                </TouchableOpacity>
+
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={
+                      memberForm.dateOfBirth && !isNaN(new Date(memberForm.dateOfBirth).getTime())
+                        ? new Date(memberForm.dateOfBirth)
+                        : new Date(2000, 0, 1)
+                    }
+                    mode="date"
+                    display="calendar"
+                    maximumDate={new Date()}
+                    onChange={(event, selectedDate) => {
+                      setShowDatePicker(false);
+                      if (selectedDate) {
+                        const year = selectedDate.getFullYear();
+                        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                        const day = String(selectedDate.getDate()).padStart(2, '0');
+                        const formattedDate = `${year}-${month}-${day}`;
+                        setMemberForm((p) => ({ ...p, dateOfBirth: formattedDate }));
+                      }
+                    }}
+                  />
+                )}
 
                 <Input
-                  label="Mobile Number (Optional)"
-                  placeholder="10-digit number"
+                  label={locale === 'en' ? 'Mobile Number (Optional)' : 'मोबाइल नंबर (वैकल्पिक)'}
+                  placeholder={locale === 'en' ? '10-digit number' : '10-अंकीय मोबाइल'}
                   value={memberForm.mobile || ''}
                   onChangeText={(v) => setMemberForm((p) => ({ ...p, mobile: v }))}
                   keyboardType="phone-pad"
@@ -468,7 +598,9 @@ export default function FamilyDetailScreen() {
                 />
 
                 {/* Education type selector */}
-                <Text style={styles.fieldLabel}>Education / Occupation Status</Text>
+                <Text style={styles.fieldLabel}>
+                  {locale === 'en' ? 'Education / Occupation Status' : 'शिक्षा / व्यवसाय की स्थिति'}
+                </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                   <View style={styles.chipsRow}>
                     {Object.keys(EDUCATION_TYPES).map((edu) => {
@@ -489,7 +621,7 @@ export default function FamilyDetailScreen() {
                           style={[styles.gotraChip, isActive && styles.gotraChipActive]}
                         >
                           <Text style={[styles.gotraChipText, isActive && styles.gotraChipTextActive]}>
-                            {EDUCATION_TYPES[edu as EducationType]}
+                            {getEducationLabel(edu)}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -500,7 +632,9 @@ export default function FamilyDetailScreen() {
                 {/* Conditional Fields based on Education type */}
                 {memberForm.educationType === 'SCHOOL' ? (
                   <>
-                    <Text style={styles.fieldLabel}>Current Standard / Class</Text>
+                    <Text style={styles.fieldLabel}>
+                      {locale === 'en' ? 'Current Standard / Class' : 'वर्तमान कक्षा'}
+                    </Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                       <View style={styles.chipsRow}>
                         {SCHOOL_STANDARDS.map((s) => {
@@ -520,8 +654,8 @@ export default function FamilyDetailScreen() {
                       </View>
                     </ScrollView>
                     <Input
-                      label="School Name"
-                      placeholder="e.g. Govt Sr Sec School"
+                      label={locale === 'en' ? 'School Name' : 'स्कूल का नाम'}
+                      placeholder={locale === 'en' ? 'e.g. Govt Sr Sec School' : 'उदा. राजकीय उच्च माध्यमिक विद्यालय'}
                       value={memberForm.schoolOrCollegeName || ''}
                       onChangeText={(v) => setMemberForm((p) => ({ ...p, schoolOrCollegeName: v }))}
                     />
@@ -531,14 +665,14 @@ export default function FamilyDetailScreen() {
                 {memberForm.educationType === 'COLLEGE' || memberForm.educationType === 'GRADUATED' ? (
                   <>
                     <Input
-                      label="Degree / Course Name"
-                      placeholder="e.g. B.Tech / MBA / B.Sc"
+                      label={locale === 'en' ? 'Degree / Course Name' : 'डिग्री / कोर्स का नाम'}
+                      placeholder={locale === 'en' ? 'e.g. B.Tech / MBA / B.Sc' : 'उदा. B.Tech / MBA / B.Sc'}
                       value={memberForm.degree || ''}
                       onChangeText={(v) => setMemberForm((p) => ({ ...p, degree: v }))}
                     />
                     <Input
-                      label="College / University Name"
-                      placeholder="e.g. Rajasthan University"
+                      label={locale === 'en' ? 'College / University Name' : 'कॉलेज / विश्वविद्यालय का नाम'}
+                      placeholder={locale === 'en' ? 'e.g. Rajasthan University' : 'उदा. राजस्थान विश्वविद्यालय'}
                       value={memberForm.schoolOrCollegeName || ''}
                       onChangeText={(v) => setMemberForm((p) => ({ ...p, schoolOrCollegeName: v }))}
                     />
@@ -549,8 +683,8 @@ export default function FamilyDetailScreen() {
                 memberForm.educationType === 'BUSINESS' ||
                 memberForm.educationType === 'OTHER' ? (
                   <Input
-                    label="Occupation / Business description"
-                    placeholder="e.g. Software Engineer / Furniture Shop Owners"
+                    label={locale === 'en' ? 'Occupation / Business description' : 'व्यवसाय / नौकरी का विवरण'}
+                    placeholder={locale === 'en' ? 'e.g. Software Engineer / Furniture Shop Owners' : 'उदा. सॉफ्टवेयर इंजीनियर / फर्नीचर दुकान मालिक'}
                     value={memberForm.occupation || ''}
                     onChangeText={(v) => setMemberForm((p) => ({ ...p, occupation: v }))}
                   />
@@ -559,7 +693,7 @@ export default function FamilyDetailScreen() {
 
               <View style={styles.modalBottomActions}>
                 <Button
-                  title="Cancel"
+                  title={locale === 'en' ? 'Cancel' : 'रद्द करें'}
                   onPress={() => setModalVisible(false)}
                   variant="secondary"
                   size="md"
@@ -568,8 +702,8 @@ export default function FamilyDetailScreen() {
                 <Button
                   title={
                     createMemberMutation.isPending || updateMemberMutation.isPending
-                      ? 'Saving...'
-                      : '✅ Save Details'
+                      ? (locale === 'en' ? 'Saving...' : 'सहेज रहा है...')
+                      : (locale === 'en' ? '✅ Save Details' : '✅ विवरण सहेजें')
                   }
                   onPress={handleSaveMember}
                   isLoading={createMemberMutation.isPending || updateMemberMutation.isPending}
@@ -611,14 +745,11 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  backBtnText: {
-    color: COLORS.gold.light,
-    fontSize: 13,
-    fontWeight: '600',
+    borderRadius: 18,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   navHeaderTitle: {
     fontSize: 18,
@@ -825,6 +956,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     overflow: 'hidden',
     paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    flexShrink: 1,
   },
   modalGoldAccent: {
     height: 4,
