@@ -37,7 +37,69 @@ export default function ProfileScreen() {
     );
   };
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.cream[50] }}>
+        <LinearGradient colors={['#3D0C11', '#6B1414']} style={styles.headerGrad}>
+          <SafeAreaView edges={['top']}>
+            <View style={styles.headerContent}>
+              <Avatar name="Guest User" size="xl" isHead />
+              <Text style={styles.userName}>Guest User</Text>
+              <Text style={styles.userEmail}>Public Directory Access</Text>
+              <View style={styles.rolePill}>
+                <Text style={styles.roleText}>👤 Public Viewer</Text>
+              </View>
+            </View>
+          </SafeAreaView>
+        </LinearGradient>
+
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 16, gap: 12 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Administrator Login card */}
+          <Card variant="elevated">
+            <Text style={styles.sectionTitle}>⚙️ Administrator Access</Text>
+            <Text style={{ fontSize: 13, color: COLORS.sandal[600], lineHeight: 18, marginBottom: 12 }}>
+              Are you a Village or Super Admin? Log in with your admin account to register new families, update members, and manage your village directory.
+            </Text>
+            
+            <TouchableOpacity
+              onPress={() => router.push('/auth/login')}
+              style={{ borderRadius: 12, overflow: 'hidden' }}
+            >
+              <LinearGradient
+                colors={['#D4A017', '#9A6E00']}
+                style={{ paddingVertical: 14, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14, letterSpacing: 0.3 }}>
+                  🔑 Admin Log In
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Card>
+
+          {/* App Info */}
+          <Card variant="bordered">
+            <Text style={styles.sectionTitle}>ℹ️ About Directory</Text>
+            <InfoRow label="App Name" value="Gram Parivar" />
+            <InfoRow label="Version" value="1.0.0" />
+            <InfoRow label="Purpose" value="Village Family Heritage Directory" />
+          </Card>
+
+          {/* Footer ornament */}
+          <View style={styles.footerOrnament}>
+            <View style={styles.ornLine} />
+            <Text style={styles.ornDot}>❋</Text>
+            <View style={styles.ornLine} />
+          </View>
+          <Text style={styles.footer}>ग्राम परिवार · Gram Parivar</Text>
+          <View style={{ height: 8 }} />
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.cream[50] }}>

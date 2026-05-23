@@ -168,7 +168,7 @@ In Appwrite Console:
      "userId": "<user_id_from_step_1>",
      "name": "Super Admin",
      "email": "superadmin@gramparivar.com",
-     "mobile": "9999999999",
+     "mobile": "7742261445",
      "role": "SUPER_ADMIN",
      "isActive": true
    }

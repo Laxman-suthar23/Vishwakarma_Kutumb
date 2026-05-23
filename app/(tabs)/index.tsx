@@ -75,10 +75,10 @@ export default function HomeScreen() {
 
             <View style={styles.bannerContent}>
               <Text style={styles.greeting}>{greeting()}</Text>
-              <Text style={styles.userName}>{user?.name}</Text>
+              <Text style={styles.userName}>{user?.name || 'Guest User'}</Text>
               <View style={styles.roleBadge}>
                 <Text style={styles.roleText}>
-                  {user?.role === 'SUPER_ADMIN' ? '👑 Super Admin' : '🏘️ Village Admin'}
+                  {!user ? '👤 Public Viewer' : user.role === 'SUPER_ADMIN' ? '👑 Super Admin' : '🏘️ Village Admin'}
                 </Text>
               </View>
             </View>
@@ -126,27 +126,38 @@ export default function HomeScreen() {
               onPress={() => router.push('/(tabs)/villages')}
               color="#FCE4EC"
             />
-            {isSuperAdmin ? (
-              <QuickAction
-                emoji="👑"
-                label="Dashboard"
-                onPress={() => router.push('/admin/super')}
-                color="#E8F5E9"
-              />
+            {user ? (
+              <>
+                {isSuperAdmin ? (
+                  <QuickAction
+                    emoji="👑"
+                    label="Dashboard"
+                    onPress={() => router.push('/admin/super')}
+                    color="#E8F5E9"
+                  />
+                ) : (
+                  <QuickAction
+                    emoji="📋"
+                    label="Manage"
+                    onPress={() => router.push('/admin/village')}
+                    color="#E8F5E9"
+                  />
+                )}
+                <QuickAction
+                  emoji="➕"
+                  label="Add Family"
+                  onPress={() => router.push('/village/family/add')}
+                  color="#EDE7F6"
+                />
+              </>
             ) : (
               <QuickAction
-                emoji="📋"
-                label="Manage"
-                onPress={() => router.push('/admin/village')}
+                emoji="🔐"
+                label="Admin Login"
+                onPress={() => router.push('/auth/login')}
                 color="#E8F5E9"
               />
             )}
-            <QuickAction
-              emoji="➕"
-              label="Add Family"
-              onPress={() => router.push('/village/family/add')}
-              color="#EDE7F6"
-            />
           </View>
 
           {/* ── Featured Villages ──────────────────────────────── */}

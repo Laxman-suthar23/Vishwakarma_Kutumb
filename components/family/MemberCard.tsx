@@ -13,9 +13,9 @@ import {
   getEducationDisplay,
   getEducationColor,
   formatMobile,
-  RELATION_LABELS,
 } from '@utils/helpers';
-import type { Member } from '@types/index';
+import { RELATION_LABELS } from '@constants/config';
+import type { Member } from '@/types';
 
 // ─── Member Card ──────────────────────────────────────────────────────────────
 

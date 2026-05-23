@@ -26,11 +26,7 @@ export default function IndexScreen() {
   const overlayOpacity = useSharedValue(0);
 
   const navigate = () => {
-    if (isAuthenticated) {
-      router.replace('/(tabs)');
-    } else {
-      router.replace('/auth/login');
-    }
+    router.replace('/(tabs)');
   };
 
   useEffect(() => {

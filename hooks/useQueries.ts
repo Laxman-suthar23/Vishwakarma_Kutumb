@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tansta
 import { villageService } from '@services/village.service';
 import { familyService } from '@services/family.service';
 import { memberService } from '@services/member.service';
-import type { VillageFormData, FamilyFormData, MemberFormData, SearchFilters } from '@types/index';
+import type { VillageFormData, FamilyFormData, MemberFormData, SearchFilters } from '@/types';
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
 
@@ -109,7 +109,7 @@ export function useCreateFamily() {
       const family = await familyService.createFamily({
         ...familyData,
         villageName,
-      });
+      } as any);
       return family;
     },
     onSuccess: (family) => {
