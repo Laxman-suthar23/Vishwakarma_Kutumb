@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "विश्वकर्मा कुटुंब",
+    "slug": "gram-parivar",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/logo.png",
+    "scheme": "gramparivar",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/logo.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#3D0C11"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.gramparivar.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Allow Gram Parivar to access your photos to upload family images.",
+        "NSCameraUsageDescription": "Allow Gram Parivar to use your camera to take family photos."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/logo.png",
+        "backgroundColor": "#3D0C11"
+      },
+      "package": "com.gramparivar.app",
+      "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "CAMERA"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/logo.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Gram Parivar to access your photos."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
