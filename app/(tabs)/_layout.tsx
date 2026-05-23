@@ -1,122 +1,149 @@
-import { Tabs, router } from 'expo-router';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { Tabs } from 'expo-router';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuthStore, useIsSuperAdmin } from '@store/auth.store';
 import { COLORS } from '@constants/colors';
 
-// ─── Custom Tab Bar ───────────────────────────────────────────────────────────
+// ─── Custom Floating Pill Tab Bar ──────────────────────────────────────────
 
-function TabIcon({
-  emoji,
-  label,
-  focused,
-}: {
-  emoji: string;
-  label: string;
-  focused: boolean;
-}) {
+function CustomTabBar({ state, descriptors, navigation }: any) {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={[tabStyles.iconWrap, focused && tabStyles.iconActive]}>
-      <Text style={tabStyles.emoji}>{emoji}</Text>
-      <Text style={[tabStyles.label, focused && tabStyles.labelActive]}>
-        {label}
-      </Text>
-      {focused && <View style={tabStyles.activeDot} />}
+    <View style={[
+      styles.tabBarContainer,
+      { 
+        height: 60 + insets.bottom,
+        paddingBottom: insets.bottom,
+        paddingTop: 6
+      }
+    ]}>
+      {state.routes.map((route: any, index: number) => {
+        const { options } = descriptors[route.key];
+        const isFocused = state.index === index;
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate({ name: route.name, merge: true });
+          }
+        };
+
+        // Define emojis and labels based on route name
+        let emoji = '🏠';
+        let label = 'Home';
+        
+        switch (route.name) {
+          case 'index':
+            emoji = '🏠';
+            label = 'Home';
+            break;
+          case 'villages':
+            emoji = '🏘️';
+            label = 'Villages';
+            break;
+          case 'search':
+            emoji = '🔍';
+            label = 'Search';
+            break;
+          case 'profile':
+            emoji = '👤';
+            label = 'Profile';
+            break;
+        }
+
+        return (
+          <TouchableOpacity
+            key={route.key}
+            onPress={onPress}
+            style={[
+              styles.tabItem,
+              isFocused ? styles.tabItemActive : styles.tabItemInactive
+            ]}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabEmoji, isFocused && styles.tabEmojiActive]}>
+              {emoji}
+            </Text>
+            <Text style={[styles.tabLabel, isFocused ? styles.tabLabelActive : styles.tabLabelInactive]}>
+              {label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
 
 export default function TabsLayout() {
-  const insets = useSafeAreaInsets();
-  const { logout } = useAuthStore();
-  const isSuperAdmin = useIsSuperAdmin();
-
   return (
     <Tabs
+      tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: '#FEFDF8',
-          borderTopWidth: 0,
-          height: 60 + insets.bottom,
-          paddingBottom: insets.bottom,
-          shadowColor: '#3D0C11',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.12,
-          shadowRadius: 16,
-          elevation: 16,
-          // Gold top border
-          borderTopColor: COLORS.gold[300],
-          borderTopWidth: 1.5,
-        },
-        tabBarActiveTintColor: COLORS.maroon[800],
-        tabBarInactiveTintColor: COLORS.sandal[400],
-        tabBarShowLabel: false,
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="🏠" label="Home" focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="villages"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="🏘️" label="Villages" focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="search"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="🔍" label="Search" focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="👤" label="Profile" focused={focused} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="index" />
+      <Tabs.Screen name="villages" />
+      <Tabs.Screen name="search" />
+      <Tabs.Screen name="profile" />
     </Tabs>
   );
 }
 
-const tabStyles = StyleSheet.create({
-  iconWrap: {
+const styles = StyleSheet.create({
+  tabBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: '#FEFDF8', // Solid Gold cream background spanning 100% width
+    borderTopWidth: 1.5,
+    borderTopColor: COLORS.gold[200],
+    // Shadows
+    shadowColor: '#3D0C11',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  tabItem: {
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     gap: 2,
-    position: 'relative',
   },
-  iconActive: {},
-  emoji: {
-    fontSize: 22,
+  tabItemActive: {
+    backgroundColor: '#6B1414', // Premium Deep Maroon Pill Container
+    borderWidth: 1,
+    borderColor: COLORS.gold[400] + '40', // 25% opacity gold border
   },
-  label: {
+  tabItemInactive: {
+    backgroundColor: 'transparent',
+  },
+  tabEmoji: {
+    fontSize: 20,
+    opacity: 0.6,
+  },
+  tabEmojiActive: {
+    fontSize: 18,
+    opacity: 1,
+  },
+  tabLabel: {
     fontSize: 10,
-    color: COLORS.sandal[400],
-    fontWeight: '500',
-  },
-  labelActive: {
-    color: COLORS.maroon[800],
     fontWeight: '700',
+    letterSpacing: 0.1,
   },
-  activeDot: {
-    position: 'absolute',
-    bottom: -6,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.gold[500],
+  tabLabelActive: {
+    color: '#FEFDF8', // Crisp white on maroon active
+  },
+  tabLabelInactive: {
+    color: COLORS.sandal[500],
   },
 });

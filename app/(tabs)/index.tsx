@@ -118,13 +118,11 @@ export default function HomeScreen() {
               emoji="🔍"
               label="Search"
               onPress={() => router.push('/(tabs)/search')}
-              color="#FFF3E0"
             />
             <QuickAction
               emoji="🏘️"
               label="Villages"
               onPress={() => router.push('/(tabs)/villages')}
-              color="#FCE4EC"
             />
             {user ? (
               <>
@@ -133,21 +131,18 @@ export default function HomeScreen() {
                     emoji="👑"
                     label="Dashboard"
                     onPress={() => router.push('/admin/super')}
-                    color="#E8F5E9"
                   />
                 ) : (
                   <QuickAction
                     emoji="📋"
                     label="Manage"
                     onPress={() => router.push('/admin/village')}
-                    color="#E8F5E9"
                   />
                 )}
                 <QuickAction
                   emoji="➕"
                   label="Add Family"
                   onPress={() => router.push('/village/family/add')}
-                  color="#EDE7F6"
                 />
               </>
             ) : (
@@ -155,7 +150,6 @@ export default function HomeScreen() {
                 emoji="🔐"
                 label="Admin Login"
                 onPress={() => router.push('/auth/login')}
-                color="#E8F5E9"
               />
             )}
           </View>
@@ -257,15 +251,15 @@ const QuickAction = ({
   emoji,
   label,
   onPress,
-  color,
 }: {
   emoji: string;
   label: string;
   onPress: () => void;
-  color: string;
 }) => (
-  <TouchableOpacity onPress={onPress} style={[styles.quickAction, { backgroundColor: color }]}>
-    <Text style={styles.qaEmoji}>{emoji}</Text>
+  <TouchableOpacity onPress={onPress} style={styles.quickAction}>
+    <View style={styles.qaIconBg}>
+      <Text style={styles.qaEmoji}>{emoji}</Text>
+    </View>
     <Text style={styles.qaLabel}>{label}</Text>
   </TouchableOpacity>
 );
@@ -345,6 +339,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 16,
     padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(212,160,23,0.25)',
   },
   statDivider: {
     width: 1,
@@ -393,22 +389,35 @@ const styles = StyleSheet.create({
   quickAction: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 12,
-    borderRadius: 14,
-    gap: 4,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: '#FEFDF8',
+    borderWidth: 1,
+    borderColor: COLORS.cream[300],
     shadowColor: '#3D0C11',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  qaIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.cream[100],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: COLORS.gold[200] + '40', // Subtle gold border
   },
   qaEmoji: {
-    fontSize: 22,
+    fontSize: 20,
   },
   qaLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: COLORS.maroon[800],
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.maroon[900],
     textAlign: 'center',
   },
   horizontalScroll: {
